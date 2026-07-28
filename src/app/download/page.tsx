@@ -27,15 +27,15 @@ export default function DownloadPage() {
             FF Community Arena
           </h1>
           <p style={{ color: '#9ca3af', margin: '0 0 2.5rem', fontSize: '0.95rem' }}>
-            Android App — Version 1.0.0
+            Android App — Version 1.0.1
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', width: '100%', maxWidth: 400 }}>
 
             {/* APK download */}
             <a
-              href="/apk/FFCommunityArena-v1.0.0-release.apk"
-              download="FFCommunityArena-v1.0.0-release.apk"
+              href="/apk/FFCommunityArena-v1.0.1-release.apk"
+              download="FFCommunityArena-v1.0.1-release.apk"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -58,15 +58,15 @@ export default function DownloadPage() {
               <div>
                 <div>Download APK</div>
                 <div style={{ fontWeight: 400, fontSize: '0.78rem', opacity: 0.85, marginTop: 2 }}>
-                  FFCommunityArena-v1.0.0-release.apk · 6.5 MB
+                  FFCommunityArena-v1.0.1-release.apk · 6.5 MB
                 </div>
               </div>
             </a>
 
             {/* AAB download */}
             <a
-              href="/apk/FFCommunityArena-v1.0.0-release.aab"
-              download="FFCommunityArena-v1.0.0-release.aab"
+              href="/apk/FFCommunityArena-v1.0.1-release.aab"
+              download="FFCommunityArena-v1.0.1-release.aab"
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -87,7 +87,7 @@ export default function DownloadPage() {
               <div>
                 <div style={{ color: '#a78bfa' }}>Download AAB</div>
                 <div style={{ fontWeight: 400, fontSize: '0.78rem', color: '#9ca3af', marginTop: 2 }}>
-                  FFCommunityArena-v1.0.0-release.aab · 8.4 MB · Google Play upload
+                  FFCommunityArena-v1.0.1-release.aab · 8.4 MB · Google Play upload
                 </div>
               </div>
             </a>
@@ -115,7 +115,7 @@ export default function DownloadPage() {
           </div>
 
           <p style={{ marginTop: '2rem', color: '#4b5563', fontSize: '0.78rem' }}>
-            Signed release build · Min Android 7.0 (API 24) · v1.0.0
+            Signed release build · Min Android 7.0 (API 24) · v1.0.1
           </p>
         </div>
       </body>
