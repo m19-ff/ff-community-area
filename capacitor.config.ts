@@ -1,23 +1,22 @@
 import type { CapacitorConfig } from '@capacitor/cli'
 
+// Production server URL — set CAPACITOR_SERVER_URL in your environment to
+// override (e.g. in CI or when the Vercel domain changes).
+// Falls back to the HappySeeds preview URL so the app works out of the box.
+const serverUrl =
+  process.env.CAPACITOR_SERVER_URL ||
+  'https://13000-irwem1lfbz0ejkitkp9w3-dfc00ec5.preview.happyseeds.space'
+
 const config: CapacitorConfig = {
   appId: 'com.ffcommunityarena.app',
   appName: 'FF Community Arena',
   webDir: 'out',
-  bundledWebRuntime: false,
   server: {
-    // Production: point to your Vercel deployment
-    url: 'https://ff-community-area.vercel.app',
+    url: serverUrl,
     cleartext: false,
-    // Allow all origins for the WebView
-    allowNavigation: ['ff-community-area.vercel.app', '*.vercel.app'],
+    allowNavigation: ['*.happyseeds.space', '*.vercel.app'],
   },
   android: {
-    buildOptions: {
-      keystorePath: 'ff-arena-release.keystore',
-      keystoreAlias: 'ff-arena-key',
-    },
-    // Allow HTTP in dev only — production uses HTTPS
     allowMixedContent: false,
     captureInput: true,
     webContentsDebuggingEnabled: false,
