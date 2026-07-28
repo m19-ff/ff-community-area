@@ -1,6 +1,6 @@
 import {
   pgTable, serial, text, varchar, boolean, integer, bigint,
-  timestamp, jsonb, pgEnum, decimal, uniqueIndex, index
+  timestamp, jsonb, pgEnum, decimal, uniqueIndex, index, customType
 } from 'drizzle-orm/pg-core'
 import { relations } from 'drizzle-orm'
 
@@ -231,8 +231,11 @@ export const rechargeRequests = pgTable('recharge_requests', {
 export const appReleases = pgTable('app_releases', {
   id: serial('id').primaryKey(),
   version: varchar('version', { length: 30 }).notNull(),
-  apkUrl: text('apk_url').notNull(),
+  apkUrl: text('apk_url').notNull(),          // e.g. /api/app-release/download/3
   apkSize: varchar('apk_size', { length: 20 }),
+  apkData: customType<{ data: Buffer }>({
+    dataType() { return 'bytea' },
+  })('apk_data'),                               // binary stored in DB
   releaseNotes: text('release_notes'),
   isPublished: boolean('is_published').default(false).notNull(),
   forceUpdate: boolean('force_update').default(false).notNull(),
