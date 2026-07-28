@@ -227,6 +227,19 @@ export const rechargeRequests = pgTable('recharge_requests', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+// ─── App Releases ─────────────────────────────────────────────────────────────
+export const appReleases = pgTable('app_releases', {
+  id: serial('id').primaryKey(),
+  version: varchar('version', { length: 30 }).notNull(),         // e.g. "1.2.0"
+  apkUrl: text('apk_url').notNull(),                             // e.g. "/apk/ff-arena-v1.2.0.apk"
+  apkSize: varchar('apk_size', { length: 20 }),                  // e.g. "45 MB"
+  releaseNotes: text('release_notes'),
+  isPublished: boolean('is_published').default(false).notNull(),
+  publishedAt: timestamp('published_at'),
+  uploadedBy: integer('uploaded_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+})
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 export const settings = pgTable('settings', {
   id: serial('id').primaryKey(),

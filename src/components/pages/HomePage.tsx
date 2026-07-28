@@ -1,29 +1,39 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useAppStore, apiCall } from '@/store/useAppStore'
-import { Trophy, Swords, Users, Zap, ArrowRight, Plus, Shield, Play, TrendingUp } from 'lucide-react'
+import { Trophy, Swords, Users, Zap, ArrowRight, Plus, Shield, Play, Download, Smartphone, Star } from 'lucide-react'
 import Avatar from '../ui/Avatar'
 import { PageLoader } from '../ui/LoadingSpinner'
 
+type AppRelease = {
+  id: number; version: string; apkUrl: string; apkSize: string | null
+  releaseNotes: string | null; publishedAt: string | null
+}
+
 export default function HomePage() {
   const { user, wallet, myTeam, token, navigate, showToast } = useAppStore()
-  const [tournaments, setTournaments] = useState<unknown[]>([])
-  const [scrims, setScrims] = useState<unknown[]>([])
-  const [news, setNews] = useState<unknown[]>([])
-  const [loading, setLoading] = useState(true)
-  const [adLoading, setAdLoading] = useState(false)
-  const [adsToday, setAdsToday] = useState(0)
+  const [tournaments,   setTournaments]   = useState<unknown[]>([])
+  const [scrims,        setScrims]        = useState<unknown[]>([])
+  const [news,          setNews]          = useState<unknown[]>([])
+  const [loading,       setLoading]       = useState(true)
+  const [adLoading,     setAdLoading]     = useState(false)
+  const [adsToday,      setAdsToday]      = useState(0)
+  const [appRelease,    setAppRelease]    = useState<AppRelease | null>(null)
 
   useEffect(() => {
     const load = async () => {
-      const [tRes, sRes, nRes] = await Promise.all([
+      const [tRes, sRes, nRes, apkRes] = await Promise.all([
         apiCall('/tournaments?status=published&limit=3', {}, token),
         apiCall('/scrims?upcoming=true&limit=3', {}, token),
         apiCall('/news?limit=3', {}, token),
+        apiCall('/app-release', {}, token),
       ])
       if (tRes.success) setTournaments((tRes.data as { tournaments: unknown[] }).tournaments || [])
       if (sRes.success) setScrims((sRes.data as { scrims: unknown[] }).scrims || [])
       if (nRes.success) setNews((nRes.data as { news: unknown[] }).news || [])
+      if (apkRes.success && (apkRes.data as { release: AppRelease | null }).release) {
+        setAppRelease((apkRes.data as { release: AppRelease }).release)
+      }
       setLoading(false)
     }
     load()
@@ -111,6 +121,61 @@ export default function HomePage() {
           </div>
         ))}
       </div>
+
+      {/* ── Download App Banner ────────────────────────────── */}
+      {appRelease && (
+        <div
+          className="rounded-2xl p-4 mb-6 flex items-center gap-4"
+          style={{
+            background: 'linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.08) 100%)',
+            border: '1px solid rgba(99,102,241,0.30)',
+          }}
+        >
+          <div
+            className="flex items-center justify-center rounded-xl shrink-0"
+            style={{ width: 48, height: 48, background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.35)' }}
+          >
+            <Smartphone size={24} style={{ color: '#818cf8' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-sm" style={{ color: '#c7d2fe' }}>
+                FF Community Arena App
+              </span>
+              <span
+                className="badge text-xs"
+                style={{ background: 'rgba(99,102,241,0.18)', color: '#a5b4fc', border: '1px solid rgba(99,102,241,0.35)' }}
+              >
+                v{appRelease.version}
+              </span>
+              {appRelease.apkSize && (
+                <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{appRelease.apkSize}</span>
+              )}
+            </div>
+            {appRelease.releaseNotes && (
+              <p className="text-xs mt-0.5 line-clamp-1" style={{ color: 'var(--text-muted)' }}>
+                {appRelease.releaseNotes}
+              </p>
+            )}
+          </div>
+          <a
+            href={appRelease.apkUrl}
+            download
+            className="btn btn-sm shrink-0"
+            style={{
+              background: 'rgba(99,102,241,0.85)',
+              color: '#fff',
+              border: 'none',
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            <Download size={14} /> Download App
+          </a>
+        </div>
+      )}
 
       {/* Quick Actions */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">

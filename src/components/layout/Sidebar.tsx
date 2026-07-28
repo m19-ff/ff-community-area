@@ -4,7 +4,7 @@ import Avatar from '../ui/Avatar'
 import {
   Home, Trophy, Swords, Users, Shield, Wallet, Newspaper,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
-  LayoutDashboard, UserCog, Building, FileText, DollarSign, RefreshCw, SlidersHorizontal
+  LayoutDashboard, UserCog, Building, FileText, DollarSign, RefreshCw, SlidersHorizontal, Smartphone
 } from 'lucide-react'
 
 const PLAYER_NAV = [
@@ -27,6 +27,7 @@ const ADMIN_NAV = [
   { icon: FileText, label: 'News', page: 'admin-news' },
   { icon: DollarSign, label: 'Withdrawals', page: 'admin-withdrawals' },
   { icon: RefreshCw, label: 'Recharge', page: 'admin-recharge' },
+  { icon: Smartphone, label: 'App', page: 'admin-app' },
   { icon: SlidersHorizontal, label: 'Settings', page: 'admin-settings' },
 ]
 

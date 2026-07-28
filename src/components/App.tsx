@@ -25,6 +25,7 @@ import AdminNewsPage from './pages/admin/AdminNewsPage'
 import AdminWithdrawalsPage from './pages/admin/AdminWithdrawalsPage'
 import AdminRechargePage from './pages/admin/AdminRechargePage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
+import AdminAppPage from './pages/admin/AdminAppPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 
 const DASHBOARD_PAGES = [
@@ -32,7 +33,8 @@ const DASHBOARD_PAGES = [
   'teams', 'team-detail', 'my-team', 'wallet', 'news',
   'news-detail', 'notifications', 'settings',
   'admin', 'admin-users', 'admin-teams', 'admin-tournaments',
-  'admin-scrims', 'admin-news', 'admin-withdrawals', 'admin-recharge', 'admin-settings',
+  'admin-scrims', 'admin-news', 'admin-withdrawals', 'admin-recharge',
+  'admin-settings', 'admin-app',
 ]
 
 function PageContent() {
@@ -57,6 +59,7 @@ function PageContent() {
     case 'admin-withdrawals': return <AdminWithdrawalsPage />
     case 'admin-recharge': return <AdminRechargePage />
     case 'admin-settings': return <AdminSettingsPage />
+    case 'admin-app': return <AdminAppPage />
     default: return <HomePage />
   }
 }

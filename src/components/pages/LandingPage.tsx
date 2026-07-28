@@ -1,9 +1,20 @@
 'use client'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
-import { Trophy, Users, Zap, Shield, ArrowRight, Play, Star, Swords } from 'lucide-react'
+import { Trophy, Users, Zap, Shield, ArrowRight, Play, Swords, Download, Smartphone } from 'lucide-react'
+
+type AppRelease = { version: string; apkUrl: string; apkSize: string | null }
 
 export default function LandingPage() {
   const { navigate } = useAppStore()
+  const [appRelease, setAppRelease] = useState<AppRelease | null>(null)
+
+  useEffect(() => {
+    fetch('/api/app-release')
+      .then(r => r.json())
+      .then(j => { if (j.success && j.data.release) setAppRelease(j.data.release) })
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="min-h-screen" style={{ background: 'var(--bg-primary)', overflowY: 'auto' }}>
@@ -93,6 +104,26 @@ export default function LandingPage() {
             <button onClick={() => navigate('login')} className="btn btn-secondary btn-lg">
               Sign In
             </button>
+            {appRelease && (
+              <a
+                href={appRelease.apkUrl}
+                download
+                className="btn btn-lg"
+                style={{
+                  background: 'rgba(99,102,241,0.85)',
+                  color: '#fff',
+                  border: '1px solid rgba(99,102,241,0.4)',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <Download size={18} />
+                Download App
+                <span style={{ fontSize: '0.7rem', opacity: 0.8 }}>v{appRelease.version}</span>
+              </a>
+            )}
           </div>
 
           {/* Stats */}
@@ -164,6 +195,62 @@ export default function LandingPage() {
           </button>
         </div>
       </section>
+
+      {/* Download App section */}
+      {appRelease && (
+        <section
+          className="section"
+          style={{ borderTop: '1px solid var(--border)' }}
+        >
+          <div className="container mx-auto text-center" style={{ maxWidth: 640 }}>
+            <div
+              className="rounded-2xl p-8"
+              style={{
+                background: 'linear-gradient(135deg, rgba(59,130,246,0.12) 0%, rgba(139,92,246,0.10) 100%)',
+                border: '1px solid rgba(99,102,241,0.28)',
+              }}
+            >
+              <div
+                className="flex items-center justify-center rounded-2xl mx-auto mb-5"
+                style={{ width: 72, height: 72, background: 'rgba(99,102,241,0.15)', border: '2px solid rgba(99,102,241,0.35)' }}
+              >
+                <Smartphone size={36} style={{ color: '#818cf8' }} />
+              </div>
+              <h2 className="text-title mb-2" style={{ color: '#c7d2fe' }}>
+                Download the Android App
+              </h2>
+              <p className="mb-2" style={{ color: 'var(--text-secondary)' }}>
+                Get the full FF Community Arena experience on your Android device.
+              </p>
+              <div className="flex items-center justify-center gap-3 mb-6 flex-wrap text-sm" style={{ color: 'var(--text-muted)' }}>
+                <span>Version {appRelease.version}</span>
+                {appRelease.apkSize && <span>· {appRelease.apkSize}</span>}
+                <span>· Free</span>
+              </div>
+              <a
+                href={appRelease.apkUrl}
+                download
+                className="btn btn-lg"
+                style={{
+                  background: 'rgba(99,102,241,0.85)',
+                  color: '#fff',
+                  border: 'none',
+                  fontWeight: 700,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                  fontSize: '1rem',
+                }}
+              >
+                <Download size={20} /> Download APK
+              </a>
+              <p className="text-xs mt-4" style={{ color: 'var(--text-muted)' }}>
+                Enable "Install from unknown sources" in Android Settings to install.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Footer */}
       <footer

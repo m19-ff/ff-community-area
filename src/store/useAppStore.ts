@@ -66,6 +66,7 @@ type Page =
   | 'admin-withdrawals'
   | 'admin-recharge'
   | 'admin-settings'
+  | 'admin-app'
 
 interface AppState {
   // Auth

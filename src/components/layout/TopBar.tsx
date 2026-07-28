@@ -22,6 +22,7 @@ const PAGE_TITLES: Record<string, string> = {
   'admin-withdrawals': 'Withdrawal Requests',
   'admin-recharge': 'Recharge Requests',
   'admin-settings': 'Platform Settings',
+  'admin-app': 'App Management',
 }
 
 export default function TopBar() {
