@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
   // Get ad reward amount from settings
   const [setting] = await db.select().from(settings).where(eq(settings.key, 'ad_reward_points')).limit(1)
-  const rewardPoints = setting ? parseInt(setting.value) : 10
+  const rewardPoints = setting ? parseInt(setting.value) : 1
 
   const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, auth.userId)).limit(1)
   if (!wallet) return apiError('Wallet not found', 404)
