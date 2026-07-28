@@ -40,3 +40,12 @@ dist-ssr
 # Generated archives
 public/project-source.tar.gz
 public/project-source.zip
+
+# Android build outputs (keep release-builds/)
+android/app/build/
+android/build/
+android/.gradle/
+android/capacitor-cordova-android-plugins/build/
+*.keystore
+!ff-arena-release.keystore
+/tmp/
