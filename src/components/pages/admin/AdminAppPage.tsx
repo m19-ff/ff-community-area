@@ -3,33 +3,33 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore, apiCall } from '@/store/useAppStore'
 import {
   Smartphone, Upload, CheckCircle, Eye, EyeOff,
-  Trash2, Plus, RefreshCw, Download, Bell,
+  Trash2, Plus, RefreshCw, Download, Bell, AlertTriangle, Shield,
 } from 'lucide-react'
 import { PageLoader } from '../../ui/LoadingSpinner'
 import Modal from '../../ui/Modal'
 
 type Release = {
   id: number; version: string; apkUrl: string; apkSize: string | null
-  releaseNotes: string | null; isPublished: boolean; publishedAt: string | null
-  createdAt: string
+  releaseNotes: string | null; isPublished: boolean; forceUpdate: boolean
+  publishedAt: string | null; createdAt: string
 }
 
-const EMPTY_FORM = { version: '', releaseNotes: '', publish: true }
+const EMPTY_FORM = { version: '', releaseNotes: '', publish: true, forceUpdate: false }
 
 export default function AdminAppPage() {
   const { token, showToast } = useAppStore()
-  const [releases,    setReleases]    = useState<Release[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [showModal,   setShowModal]   = useState(false)
-  const [form,        setForm]        = useState(EMPTY_FORM)
-  const [apkFile,     setApkFile]     = useState<File | null>(null)
-  const [submitting,  setSubmitting]  = useState(false)
-  const [toggling,    setToggling]    = useState<number | null>(null)
+  const [releases,   setReleases]   = useState<Release[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [showModal,  setShowModal]  = useState(false)
+  const [form,       setForm]       = useState(EMPTY_FORM)
+  const [apkFile,    setApkFile]    = useState<File | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [toggling,   setToggling]   = useState<number | null>(null)
+  const [forcingId,  setForcingId]  = useState<number | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => {
     setLoading(true)
-    // Use PUT to list all releases (admin)
     const res = await fetch('/api/app-release', {
       method: 'PUT',
       headers: { Authorization: `Bearer ${token}` },
@@ -57,6 +57,7 @@ export default function AdminAppPage() {
     fd.append('version',      form.version.trim())
     fd.append('releaseNotes', form.releaseNotes.trim())
     fd.append('publish',      String(form.publish))
+    fd.append('forceUpdate',  String(form.forceUpdate && form.publish))
     fd.append('apk',          apkFile)
 
     const res = await fetch('/api/app-release', {
@@ -87,6 +88,25 @@ export default function AdminAppPage() {
     setToggling(null)
     if (json.success) {
       showToast(r.isPublished ? 'Unpublished' : 'Published — users notified!')
+      load()
+    } else {
+      showToast(json.message || 'Failed', 'error')
+    }
+  }
+
+  const toggleForceUpdate = async (r: Release) => {
+    if (!r.isPublished) { showToast('Publish the release first before enabling Force Update', 'error'); return }
+    setForcingId(r.id)
+    const next = !r.forceUpdate
+    const res = await fetch('/api/app-release', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: r.id, forceUpdate: next }),
+    })
+    const json = await res.json()
+    setForcingId(null)
+    if (json.success) {
+      showToast(next ? '⚠️ Force Update enabled — old APK users will be blocked' : 'Force Update disabled')
       load()
     } else {
       showToast(json.message || 'Failed', 'error')
@@ -139,6 +159,11 @@ export default function AdminAppPage() {
               <span className="badge" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
                 Live
               </span>
+              {publishedRelease.forceUpdate && (
+                <span className="badge flex items-center gap-1" style={{ background: 'rgba(239,68,68,0.15)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}>
+                  <AlertTriangle size={10} /> Force Update
+                </span>
+              )}
               {publishedRelease.apkSize && (
                 <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{publishedRelease.apkSize}</span>
               )}
@@ -181,6 +206,7 @@ export default function AdminAppPage() {
               <th className="hidden sm:table-cell">Size</th>
               <th className="hidden md:table-cell">Release Notes</th>
               <th>Status</th>
+              <th>Force Update</th>
               <th className="hidden sm:table-cell">Uploaded</th>
               <th>Actions</th>
             </tr>
@@ -208,12 +234,45 @@ export default function AdminAppPage() {
                     </span>
                   )}
                 </td>
+                {/* Force Update column */}
+                <td>
+                  <button
+                    onClick={() => toggleForceUpdate(r)}
+                    disabled={forcingId === r.id || !r.isPublished}
+                    title={
+                      !r.isPublished
+                        ? 'Publish the release first'
+                        : r.forceUpdate
+                          ? 'Disable Force Update'
+                          : 'Enable Force Update — blocks users on older APK versions'
+                    }
+                    className="btn btn-sm"
+                    style={{
+                      background: r.forceUpdate
+                        ? 'rgba(239,68,68,0.15)'
+                        : 'rgba(255,255,255,0.04)',
+                      border: r.forceUpdate
+                        ? '1px solid rgba(239,68,68,0.4)'
+                        : '1px solid var(--border)',
+                      color: r.forceUpdate ? '#f87171' : 'var(--text-muted)',
+                      cursor: !r.isPublished ? 'not-allowed' : 'pointer',
+                      opacity: !r.isPublished ? 0.4 : 1,
+                    }}
+                  >
+                    {forcingId === r.id ? (
+                      <RefreshCw size={12} className="animate-spin" />
+                    ) : r.forceUpdate ? (
+                      <><AlertTriangle size={12} /> On</>
+                    ) : (
+                      <><Shield size={12} /> Off</>
+                    )}
+                  </button>
+                </td>
                 <td className="hidden sm:table-cell text-small" style={{ color: 'var(--text-muted)' }}>
                   {new Date(r.createdAt).toLocaleDateString()}
                 </td>
                 <td>
                   <div className="flex gap-1 items-center">
-                    {/* Publish / Unpublish */}
                     <button
                       onClick={() => togglePublish(r)}
                       disabled={toggling === r.id}
@@ -228,7 +287,6 @@ export default function AdminAppPage() {
                         <><Bell size={13} /> Publish</>
                       )}
                     </button>
-                    {/* Download */}
                     <a
                       href={r.apkUrl}
                       download
@@ -243,7 +301,7 @@ export default function AdminAppPage() {
             ))}
             {releases.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <td colSpan={7} className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
                   No releases yet — upload your first APK
                 </td>
               </tr>
@@ -331,7 +389,7 @@ export default function AdminAppPage() {
               <input
                 type="checkbox"
                 checked={form.publish}
-                onChange={e => setForm(f => ({ ...f, publish: e.target.checked }))}
+                onChange={e => setForm(f => ({ ...f, publish: e.target.checked, forceUpdate: e.target.checked ? f.forceUpdate : false }))}
                 className="w-4 h-4 accent-green-500"
               />
               <div>
@@ -344,6 +402,33 @@ export default function AdminAppPage() {
                 </p>
               </div>
             </label>
+
+            {/* Force Update toggle — only relevant when publishing */}
+            {form.publish && (
+              <label
+                className="flex items-center gap-3 rounded-xl p-4 cursor-pointer"
+                style={{
+                  background: form.forceUpdate ? 'rgba(239,68,68,0.07)' : 'rgba(255,255,255,0.02)',
+                  border: `1px solid ${form.forceUpdate ? 'rgba(239,68,68,0.35)' : 'var(--border)'}`,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={form.forceUpdate}
+                  onChange={e => setForm(f => ({ ...f, forceUpdate: e.target.checked }))}
+                  className="w-4 h-4 accent-red-500"
+                />
+                <div>
+                  <div className="font-semibold text-sm flex items-center gap-2">
+                    <AlertTriangle size={14} style={{ color: form.forceUpdate ? '#f87171' : 'var(--text-muted)' }} />
+                    Force Update
+                  </div>
+                  <p className="text-xs mt-0.5" style={{ color: 'var(--text-muted)' }}>
+                    Users running an older APK will be blocked with an &ldquo;Update Required&rdquo; screen until they install this version.
+                  </p>
+                </div>
+              </label>
+            )}
 
             <div className="flex gap-3">
               <button
