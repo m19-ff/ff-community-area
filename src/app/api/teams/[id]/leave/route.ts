@@ -4,6 +4,7 @@ import { teams, teamMembers, users, wallets, transactions, notifications, teamWa
 import { eq, and, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { getTeamWallet, addTeamTransaction } from '@/lib/teamWallet'
+import { teamResetToPlayer, isPrivileged } from '@/lib/roleGuard'
 
 /**
  * POST /api/teams/[id]/leave
@@ -110,9 +111,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     await tx.delete(teamMembers)
       .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, auth.userId)))
 
-    // Reset role to player — but NEVER downgrade admin/superadmin accounts.
-    if (!['admin', 'superadmin'].includes(auth.role)) {
-      await tx.update(users).set({ role: 'player' }).where(eq(users.id, auth.userId))
+    // Reset role to player via centralized guard — silently skips admin/superadmin
+    if (!isPrivileged(auth.role)) {
+      await teamResetToPlayer(auth.userId, auth.role, 'POST /api/teams/[id]/leave')
     }
   })
 

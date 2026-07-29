@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { teams, teamMembers, users, teamWallets } from '@/db/schema'
-import { eq, like, desc, count, sql, and } from 'drizzle-orm'
+import { teams, teamMembers, teamWallets } from '@/db/schema'
+import { eq, like, desc, count, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError, paginate } from '@/lib/api'
 import { createTeamWallet } from '@/lib/teamWallet'
+import { teamSetCaptain, isPrivileged } from '@/lib/roleGuard'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -47,7 +48,7 @@ export async function POST(request: NextRequest) {
 
   try {
     // Admin/superadmin accounts are not permitted to create player teams
-    if (['admin', 'superadmin'].includes(auth.role)) {
+    if (isPrivileged(auth.role)) {
       return apiError('Admin accounts cannot create player teams', 403)
     }
 
@@ -71,11 +72,8 @@ export async function POST(request: NextRequest) {
 
     await db.insert(teamMembers).values({ teamId: team.id, userId: auth.userId })
 
-    // Update user role to captain — but NEVER downgrade admin/superadmin accounts.
-    // Admins can own a team for management purposes while keeping their admin role.
-    if (!['admin', 'superadmin'].includes(auth.role)) {
-      await db.update(users).set({ role: 'captain' }).where(eq(users.id, auth.userId))
-    }
+    // Role update via centralized guard — admin/superadmin are silently skipped
+    await teamSetCaptain(auth.userId, auth.role, 'POST /api/teams')
 
     // Create team wallet
     const wallet = await createTeamWallet(team.id)

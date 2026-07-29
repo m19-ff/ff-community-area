@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { teams, teamMembers, users } from '@/db/schema'
 import { eq, and, count } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
+import { teamResetToPlayer, isPrivileged } from '@/lib/roleGuard'
 
 /**
  * POST /api/admin/teams/[id]/members
@@ -36,7 +37,7 @@ export async function POST(
   if (!user) return apiError('User not found', 404)
 
   // Admins and superadmins cannot be added to teams as regular members
-  if (['admin', 'superadmin'].includes(user.role)) {
+  if (isPrivileged(user.role)) {
     return apiError('Admin accounts cannot be added to teams', 403)
   }
 
@@ -93,11 +94,10 @@ export async function DELETE(
     .delete(teamMembers)
     .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
 
-  // Revert role to player only for non-admin accounts with assistant role.
-  // NEVER touch admin/superadmin roles via team operations.
+  // Revert role to player via centralized guard (only for assistant; skips admin/superadmin).
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
-  if (user && user.role === 'assistant' && !['admin', 'superadmin'].includes(user.role)) {
-    await db.update(users).set({ role: 'player' }).where(eq(users.id, userId))
+  if (user && user.role === 'assistant') {
+    await teamResetToPlayer(userId, user.role, 'DELETE /api/admin/teams/[id]/members')
   }
 
   return apiSuccess({ message: 'Member removed from team' })

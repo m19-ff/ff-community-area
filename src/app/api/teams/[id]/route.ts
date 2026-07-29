@@ -4,6 +4,7 @@ import { teams, teamMembers, users, wallets, transactions, teamWallets, teamTran
 import { eq, and, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
+import { teamResetToPlayer } from '@/lib/roleGuard'
 
 // ─── GET /api/teams/[id] ─────────────────────────────────────────────────────
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -96,6 +97,14 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const teamBalance  = teamWallet?.balance ?? 0
   const memberCount  = members.length
 
+  // Fetch each member's current role from DB before the transaction deletes the team.
+  // Role resets are done after the transaction so we work from a snapshot.
+  const memberRoles = new Map<number, string>()
+  for (const m of members) {
+    const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, m.userId)).limit(1)
+    if (u) memberRoles.set(m.userId, u.role)
+  }
+
   await db.transaction(async (tx) => {
     // Distribute wallet balance equally among all members
     if (teamBalance > 0 && memberCount > 0) {
@@ -154,17 +163,16 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       }
     }
 
-    // Reset member roles to player — but NEVER touch admin/superadmin accounts.
-    for (const m of members) {
-      const [memberUser] = await tx.select({ role: users.role }).from(users).where(eq(users.id, m.userId)).limit(1)
-      if (memberUser && !['admin', 'superadmin'].includes(memberUser.role)) {
-        await tx.update(users).set({ role: 'player' }).where(eq(users.id, m.userId))
-      }
-    }
-
     // Delete the team (cascades teamMembers, teamWallets, teamTransactions via FK)
     await tx.delete(teams).where(eq(teams.id, teamId))
   })
+
+  // Reset member roles AFTER the transaction — centralized guard silently skips
+  // admin/superadmin accounts and logs any blocked attempt.
+  for (const m of members) {
+    const currentRole = memberRoles.get(m.userId) ?? 'player'
+    await teamResetToPlayer(m.userId, currentRole, 'DELETE /api/teams/[id]')
+  }
 
   return apiSuccess({ message: 'Team deleted and funds distributed to members' })
 }

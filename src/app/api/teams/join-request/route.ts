@@ -5,6 +5,7 @@ import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { transferPlayerBalanceToTeam, getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
 import { sendPushToUsers } from '@/lib/fcm'
+import { isPrivileged } from '@/lib/roleGuard'
 
 // Send join request
 export async function POST(request: NextRequest) {
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest) {
   if (!auth) return apiError('Unauthorized', 401)
 
   // Admin/superadmin accounts cannot join teams as players
-  if (['admin', 'superadmin'].includes(auth.role)) {
+  if (isPrivileged(auth.role)) {
     return apiError('Admin accounts cannot join player teams', 403)
   }
 

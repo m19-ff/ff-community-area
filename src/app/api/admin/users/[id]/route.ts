@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { users, wallets, transactions, notifications } from '@/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
+import { adminSetRole } from '@/lib/roleGuard'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(request)
@@ -97,8 +98,17 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   }
 
   if (action === 'set_role' && role) {
-    if (!['player', 'assistant', 'admin'].includes(role)) return apiError('Invalid role', 400)
-    await db.update(users).set({ role: role as typeof user.role }).where(eq(users.id, userId))
+    // All role-change logic (validation, privilege checks, superadmin protection,
+    // audit logging) is centralized in adminSetRole().
+    const err = await adminSetRole({
+      targetUserId:      userId,
+      targetCurrentRole: user.role,
+      newRole:           role,
+      performerUserId:   admin.userId,
+      performerRole:     admin.role,
+      route:             'PATCH /api/admin/users/[id]',
+    })
+    if (err) return apiError(err, 403)
     return apiSuccess({ message: `Role updated to ${role}` })
   }
 

@@ -54,6 +54,12 @@ export async function POST(request: NextRequest) {
   if (body.action === 'delete_account') {
     const [user] = await db.select().from(users).where(eq(users.id, authUser.userId))
     if (!user) return apiError('User not found', 404)
+
+    // Admin/superadmin accounts cannot be self-deleted to prevent accidental lockout
+    if (['admin', 'superadmin'].includes(user.role)) {
+      return apiError('Admin accounts cannot be self-deleted. Contact a superadmin.', 403)
+    }
+
     const valid = await verifyPassword(body.password || '', user.password)
     if (!valid) return apiError('Incorrect password', 400)
 

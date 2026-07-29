@@ -4,6 +4,7 @@ import { invitations, teams, teamMembers, notifications, teamWallets } from '@/d
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { transferPlayerBalanceToTeam, getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
+import { isPrivileged } from '@/lib/roleGuard'
 
 // Get my invitations
 export async function GET(request: NextRequest) {
@@ -58,7 +59,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   // Admin/superadmin accounts cannot accept team invitations
-  if (['admin', 'superadmin'].includes(auth.role)) {
+  if (isPrivileged(auth.role)) {
     return apiError('Admin accounts cannot join player teams', 403)
   }
 
