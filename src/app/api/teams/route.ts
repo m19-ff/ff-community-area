@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { teams, teamMembers, users, teamWallets } from '@/db/schema'
-import { eq, like, desc, count, sql } from 'drizzle-orm'
+import { eq, like, desc, count, sql, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError, paginate } from '@/lib/api'
 import { createTeamWallet } from '@/lib/teamWallet'
 
@@ -70,12 +70,19 @@ export async function POST(request: NextRequest) {
     await db.update(users).set({ role: 'captain' }).where(eq(users.id, auth.userId))
 
     // Create team wallet
-    await createTeamWallet(team.id)
+    const wallet = await createTeamWallet(team.id)
 
-    // Return updated team
-    const [updatedTeam] = await db.select().from(teams).where(eq(teams.id, team.id)).limit(1)
-
-    return apiSuccess({ team: updatedTeam }, 201)
+    // Return team with walletBalance so the store shape matches Team interface
+    return apiSuccess({
+      team: {
+        id:               team.id,
+        name:             team.name,
+        logo:             team.logo ?? null,
+        captainId:        team.captainId,
+        totalTournaments: team.totalTournaments,
+        walletBalance:    wallet.balance,
+      },
+    }, 201)
   } catch (error) {
     console.error('[teams POST]', error)
     return apiError('Failed to create team', 500)

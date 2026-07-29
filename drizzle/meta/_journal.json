@@ -29,6 +29,13 @@
       "when": 1785322707984,
       "tag": "0003_classy_energizer",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1785331670933,
+      "tag": "0004_plain_toxin",
+      "breakpoints": true
     }
   ]
 }
