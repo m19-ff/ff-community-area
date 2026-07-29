@@ -14,6 +14,7 @@ export const txTypeEnum = pgEnum('tx_type', ['earn_ad', 'earn_tournament', 'earn
 export const notifTypeEnum = pgEnum('notif_type', ['invitation', 'join_request', 'tournament_published', 'scrim_created', 'registration_accepted', 'tournament_reminder', 'withdrawal_approved', 'news', 'general'])
 export const newsTypeEnum = pgEnum('news_type', ['news', 'announcement', 'tournament_result', 'qualified_teams'])
 export const rechargeStatusEnum = pgEnum('recharge_status', ['pending', 'approved', 'rejected'])
+export const teamTxTypeEnum = pgEnum('team_tx_type', ['earn_tournament', 'earn_manual', 'deduct_tournament', 'deduct_manual', 'admin_award', 'admin_deduct', 'team_split', 'withdraw'])
 
 // ─── Users ────────────────────────────────────────────────────────────────────
 export const users = pgTable('users', {
@@ -244,6 +245,35 @@ export const appReleases = pgTable('app_releases', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 })
 
+// ─── Team Wallets ─────────────────────────────────────────────────────────────
+export const teamWallets = pgTable('team_wallets', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  balance: integer('balance').default(0).notNull(),
+  lockedBalance: integer('locked_balance').default(0).notNull(),
+  totalEarned: integer('total_earned').default(0).notNull(),
+  totalSpent: integer('total_spent').default(0).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [uniqueIndex('team_wallets_team_idx').on(t.teamId)])
+
+// ─── Team Transactions ────────────────────────────────────────────────────────
+export const teamTransactions = pgTable('team_transactions', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  type: teamTxTypeEnum('type').notNull(),
+  amount: integer('amount').notNull(),
+  balanceBefore: integer('balance_before').notNull(),
+  balanceAfter: integer('balance_after').notNull(),
+  description: text('description'),
+  meta: jsonb('meta'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('team_tx_team_idx').on(t.teamId),
+  index('team_tx_user_idx').on(t.userId),
+])
+
 // ─── Settings ────────────────────────────────────────────────────────────────
 export const settings = pgTable('settings', {
   id: serial('id').primaryKey(),
@@ -283,6 +313,8 @@ export const teamsRelations = relations(teams, ({ one, many }) => ({
   tournamentRegistrations: many(tournamentTeams),
   scrimRegistrations: many(scrimRegistrations),
   withdrawRequests: many(withdrawRequests),
+  wallet: one(teamWallets, { fields: [teams.id], references: [teamWallets.teamId] }),
+  teamTransactions: many(teamTransactions),
 }))
 
 export const teamMembersRelations = relations(teamMembers, ({ one }) => ({
@@ -310,4 +342,13 @@ export const scrimsRelations = relations(scrims, ({ many }) => ({
 export const scrimRegistrationsRelations = relations(scrimRegistrations, ({ one }) => ({
   scrim: one(scrims, { fields: [scrimRegistrations.scrimId], references: [scrims.id] }),
   team: one(teams, { fields: [scrimRegistrations.teamId], references: [teams.id] }),
+}))
+
+export const teamWalletsRelations = relations(teamWallets, ({ one }) => ({
+  team: one(teams, { fields: [teamWallets.teamId], references: [teams.id] }),
+}))
+
+export const teamTransactionsRelations = relations(teamTransactions, ({ one }) => ({
+  team: one(teams, { fields: [teamTransactions.teamId], references: [teams.id] }),
+  user: one(users, { fields: [teamTransactions.userId], references: [users.id] }),
 }))
