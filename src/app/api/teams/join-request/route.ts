@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { joinRequests, teams, teamMembers, users, notifications } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
+import { syncTeamPoints } from '@/lib/teamPoints'
 
 // Send join request
 export async function POST(request: NextRequest) {
@@ -110,6 +111,9 @@ export async function PATCH(request: NextRequest) {
     body: `Your request to join ${team.name} has been accepted!`,
     data: { teamId: jr.teamId },
   })
+
+  // Sync team points: add the new member's wallet balance to the total
+  await syncTeamPoints(jr.teamId)
 
   return apiSuccess({ message: 'Player added to team' })
 }

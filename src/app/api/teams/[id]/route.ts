@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { teams, teamMembers, users, wallets, transactions } from '@/db/schema'
+import { teams, teamMembers, users } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 
@@ -66,30 +66,11 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return apiError('Only captain can delete team', 403)
   }
 
-  // Distribute points to members
-  if (team.points > 0) {
-    const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId))
-    if (members.length > 0) {
-      const share = Math.floor(team.points / members.length)
-      for (const member of members) {
-        const [w] = await db.select().from(wallets).where(eq(wallets.userId, member.userId)).limit(1)
-        if (w) {
-          await db.update(wallets).set({ balance: w.balance + share }).where(eq(wallets.userId, member.userId))
-          await db.insert(transactions).values({
-            userId: member.userId,
-            type: 'team_split',
-            amount: share,
-            balanceBefore: w.balance,
-            balanceAfter: w.balance + share,
-            description: `Team ${team.name} dissolved — points split`,
-          })
-        }
-      }
-    }
-  }
-
-  // Reset member roles
+  // Fetch members before deletion so we can reset their roles
   const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId))
+
+  // Reset member roles to player — each member keeps their own wallet balance
+  // (team.points = sum of member wallets, so there is no separate treasury to split)
   for (const m of members) {
     await db.update(users).set({ role: 'player' }).where(eq(users.id, m.userId))
   }

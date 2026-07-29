@@ -3,6 +3,8 @@ import { db } from '@/db'
 import { users, wallets, transactions, notifications } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
+import { syncTeamPoints, adjustTeamPointsForUser } from '@/lib/teamPoints'
+import { teamMembers } from '@/db/schema'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(request)
@@ -54,6 +56,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       body: `${points} points have been added to your wallet by admin.`,
     })
 
+    // Keep team points in sync
+    await adjustTeamPointsForUser(userId, points)
+
     return apiSuccess({ message: `Awarded ${points} points`, newBalance })
   }
 
@@ -61,19 +66,26 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1)
     if (!wallet) return apiError('User wallet not found', 404)
 
-    const newBalance = Math.max(0, wallet.balance - points)
+    const actualDeduction = Math.min(points, wallet.balance)
+    const newBalance = wallet.balance - actualDeduction
+
     await db.update(wallets).set({ balance: newBalance }).where(eq(wallets.userId, userId))
 
     await db.insert(transactions).values({
       userId,
       type: 'admin_deduct',
-      amount: -points,
+      amount: -actualDeduction,
       balanceBefore: wallet.balance,
       balanceAfter: newBalance,
-      description: `Admin deducted ${points} points${reason ? ': ' + reason : ''}`,
+      description: `Admin deducted ${actualDeduction} points${reason ? ': ' + reason : ''}`,
     })
 
-    return apiSuccess({ message: `Deducted ${points} points`, newBalance })
+    // Keep team points in sync (use exact deduction after capping at balance)
+    if (actualDeduction > 0) {
+      await adjustTeamPointsForUser(userId, -actualDeduction)
+    }
+
+    return apiSuccess({ message: `Deducted ${actualDeduction} points`, newBalance })
   }
 
   if (action === 'set_role' && role) {
