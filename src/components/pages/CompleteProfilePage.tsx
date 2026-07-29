@@ -33,7 +33,11 @@ export default function CompleteProfilePage() {
       const d = res.data as { user: typeof user }
       setUser(d.user)
       showToast('Profile completed! Welcome to FF Community Arena!', 'success')
-      navigate('home')
+      if (['admin', 'superadmin', 'assistant'].includes(d.user?.role ?? '')) {
+        navigate('admin')
+      } else {
+        navigate('home')
+      }
     } else {
       showToast(res.message || 'Failed to save profile', 'error')
     }

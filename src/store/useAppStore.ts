@@ -172,7 +172,13 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (token && userStr) {
       try {
         const user = JSON.parse(userStr)
-        set({ token, user, currentPage: user.profileCompleted ? 'home' : 'complete-profile' })
+        let currentPage: Page = 'home'
+        if (!user.profileCompleted) {
+          currentPage = 'complete-profile'
+        } else if (['admin', 'superadmin', 'assistant'].includes(user.role)) {
+          currentPage = 'admin'
+        }
+        set({ token, user, currentPage })
       } catch {}
     }
   },

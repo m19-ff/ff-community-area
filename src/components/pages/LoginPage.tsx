@@ -25,7 +25,13 @@ export default function LoginPage() {
       setToken(d.token)
       setUser(d.user)
       showToast(`Welcome back, ${d.user?.gameName || d.user?.email}!`)
-      navigate(d.user?.profileCompleted ? 'home' : 'complete-profile')
+      if (!d.user?.profileCompleted) {
+        navigate('complete-profile')
+      } else if (['admin', 'superadmin', 'assistant'].includes(d.user?.role ?? '')) {
+        navigate('admin')
+      } else {
+        navigate('home')
+      }
     } else {
       showToast(res.message || 'Login failed', 'error')
     }
