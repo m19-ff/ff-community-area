@@ -76,8 +76,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const [existing] = await db.select().from(scrims).where(eq(scrims.id, scrimId)).limit(1)
   if (!existing) return apiError('Scrim not found', 404)
 
-  // Remove registrations first
-  await db.delete(scrimRegistrations).where(eq(scrimRegistrations.scrimId, scrimId))
+  // FK cascade on scrimRegistrations handles child rows automatically
   await db.delete(scrims).where(eq(scrims.id, scrimId))
 
   return apiSuccess({ message: 'Scrim deleted' })

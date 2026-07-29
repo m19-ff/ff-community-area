@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { users, wallets, transactions, notifications } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
-import { teamMembers } from '@/db/schema'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(request)
@@ -11,6 +10,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const { id } = await params
   const userId = parseInt(id)
+  if (isNaN(userId)) return apiError('Invalid user ID', 400)
 
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
   if (!user) return apiError('User not found', 404)
@@ -19,12 +19,16 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { action, points, reason, role } = body
 
   if (action === 'ban') {
-    await db.update(users).set({ isBanned: true, banReason: reason || 'Banned by admin' }).where(eq(users.id, userId))
+    await db.update(users)
+      .set({ isBanned: true, banReason: reason || 'Banned by admin' })
+      .where(eq(users.id, userId))
     return apiSuccess({ message: 'User banned' })
   }
 
   if (action === 'unban') {
-    await db.update(users).set({ isBanned: false, banReason: null }).where(eq(users.id, userId))
+    await db.update(users)
+      .set({ isBanned: false, banReason: null })
+      .where(eq(users.id, userId))
     return apiSuccess({ message: 'User unbanned' })
   }
 
@@ -32,18 +36,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, userId)).limit(1)
     if (!wallet) return apiError('User wallet not found', 404)
 
-    const newBalance = wallet.balance + points
-    await db.update(wallets).set({
-      balance: newBalance,
-      totalEarned: wallet.totalEarned + points,
-    }).where(eq(wallets.userId, userId))
+    // Use SQL arithmetic to avoid stale-read race condition
+    const [updated] = await db
+      .update(wallets)
+      .set({
+        balance:      sql`${wallets.balance}      + ${points}`,
+        totalEarned:  sql`${wallets.totalEarned}  + ${points}`,
+        updatedAt:    new Date(),
+      })
+      .where(eq(wallets.userId, userId))
+      .returning()
 
     await db.insert(transactions).values({
       userId,
       type: 'admin_award',
       amount: points,
       balanceBefore: wallet.balance,
-      balanceAfter: newBalance,
+      balanceAfter: updated.balance,
       description: `Admin awarded ${points} points${reason ? ': ' + reason : ''}`,
       meta: { adminId: admin.userId },
     })
@@ -55,7 +64,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       body: `${points} points have been added to your wallet by admin.`,
     })
 
-    return apiSuccess({ message: `Awarded ${points} points`, newBalance })
+    return apiSuccess({ message: `Awarded ${points} points`, newBalance: updated.balance })
   }
 
   if (action === 'deduct_points' && points > 0) {
@@ -63,20 +72,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (!wallet) return apiError('User wallet not found', 404)
 
     const actualDeduction = Math.min(points, wallet.balance)
-    const newBalance = wallet.balance - actualDeduction
+    if (actualDeduction === 0) return apiSuccess({ message: 'Nothing to deduct', newBalance: 0 })
 
-    await db.update(wallets).set({ balance: newBalance }).where(eq(wallets.userId, userId))
+    const [updated] = await db
+      .update(wallets)
+      .set({
+        balance:   sql`GREATEST(${wallets.balance} - ${actualDeduction}, 0)`,
+        updatedAt: new Date(),
+      })
+      .where(eq(wallets.userId, userId))
+      .returning()
 
     await db.insert(transactions).values({
       userId,
       type: 'admin_deduct',
       amount: -actualDeduction,
       balanceBefore: wallet.balance,
-      balanceAfter: newBalance,
+      balanceAfter: updated.balance,
       description: `Admin deducted ${actualDeduction} points${reason ? ': ' + reason : ''}`,
+      meta: { adminId: admin.userId },
     })
 
-    return apiSuccess({ message: `Deducted ${actualDeduction} points`, newBalance })
+    return apiSuccess({ message: `Deducted ${actualDeduction} points`, newBalance: updated.balance })
   }
 
   if (action === 'set_role' && role) {

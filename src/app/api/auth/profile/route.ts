@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { users, wallets, teamMembers, teams } from '@/db/schema'
+import { users, wallets, teamMembers, teams, teamWallets } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { requireAuth } from '@/lib/api'
-import { apiSuccess, apiError } from '@/lib/api'
+import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request)
@@ -14,11 +13,28 @@ export async function GET(request: NextRequest) {
 
   const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, auth.userId)).limit(1)
 
-  const membership = await db.select({ teamId: teamMembers.teamId, team: teams })
+  // Join team + teamWallet in one query so walletBalance is always present
+  const [membership] = await db
+    .select({
+      team: {
+        id: teams.id,
+        name: teams.name,
+        logo: teams.logo,
+        captainId: teams.captainId,
+        totalTournaments: teams.totalTournaments,
+        walletBalance: teamWallets.balance,
+      },
+    })
     .from(teamMembers)
     .leftJoin(teams, eq(teamMembers.teamId, teams.id))
+    .leftJoin(teamWallets, eq(teams.id, teamWallets.teamId))
     .where(eq(teamMembers.userId, auth.userId))
     .limit(1)
+
+  // Normalise: if team exists but wallet row is missing, show 0
+  const team = membership?.team
+    ? { ...membership.team, walletBalance: membership.team.walletBalance ?? 0 }
+    : null
 
   return apiSuccess({
     user: {
@@ -30,11 +46,15 @@ export async function GET(request: NextRequest) {
       profilePicture: user.profilePicture,
       profileCompleted: user.profileCompleted,
       emailVerified: user.emailVerified,
-      firstName: user.role === 'admin' || user.role === 'superadmin' ? user.firstName : undefined,
-      lastName: user.role === 'admin' || user.role === 'superadmin' ? user.lastName : undefined,
+      firstName: (user.role === 'admin' || user.role === 'superadmin') ? user.firstName : undefined,
+      lastName:  (user.role === 'admin' || user.role === 'superadmin') ? user.lastName  : undefined,
     },
-    wallet: wallet ? { balance: wallet.balance, totalEarned: wallet.totalEarned } : null,
-    team: membership[0]?.team || null,
+    wallet: wallet ? {
+      balance: wallet.balance,
+      totalEarned: wallet.totalEarned,
+      usdValue: (wallet.balance / 100).toFixed(2),
+    } : null,
+    team,
   })
 }
 
@@ -49,22 +69,21 @@ export async function PATCH(request: NextRequest) {
 
     const updates: Partial<typeof users.$inferInsert> = {}
 
-    // Real name can only be set once
+    // Real name can only be set once (before profileCompleted)
     if (!current.profileCompleted && body.firstName && body.lastName) {
       updates.firstName = body.firstName.trim()
-      updates.lastName = body.lastName.trim()
+      updates.lastName  = body.lastName.trim()
     }
 
-    if (body.gameName !== undefined) updates.gameName = body.gameName.trim()
-    if (body.gameUid !== undefined) updates.gameUid = body.gameUid.trim()
+    if (body.gameName   !== undefined) updates.gameName        = body.gameName.trim()
+    if (body.gameUid    !== undefined) updates.gameUid         = body.gameUid.trim()
     if (body.profilePicture !== undefined) updates.profilePicture = body.profilePicture
 
-    // Mark profile completed if all required fields are present
+    // Mark profile completed when all required fields are present
     const firstName = updates.firstName || current.firstName
-    const lastName = updates.lastName || current.lastName
-    const gameName = updates.gameName || current.gameName
-    const gameUid = updates.gameUid || current.gameUid
-
+    const lastName  = updates.lastName  || current.lastName
+    const gameName  = updates.gameName  || current.gameName
+    const gameUid   = updates.gameUid   || current.gameUid
     if (firstName && lastName && gameName && gameUid) {
       updates.profileCompleted = true
     }

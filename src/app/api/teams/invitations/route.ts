@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { invitations, teams, users, teamMembers, notifications, teamWallets } from '@/db/schema'
+import { invitations, teams, teamMembers, notifications, teamWallets } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { transferPlayerBalanceToTeam, getTeamWallet, createTeamWallet } from '@/lib/teamWallet'

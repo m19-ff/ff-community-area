@@ -28,9 +28,7 @@ export interface AddTeamTransactionParams {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-/**
- * Returns the team wallet row for the given team, or null if it doesn't exist.
- */
+/** Returns the team wallet row, or null if none exists. */
 export async function getTeamWallet(teamId: number) {
   const [wallet] = await db
     .select()
@@ -41,8 +39,8 @@ export async function getTeamWallet(teamId: number) {
 }
 
 /**
- * Creates a new team wallet with zero balances. Returns the created row.
- * If a wallet already exists for the team, returns the existing one.
+ * Returns the existing wallet or creates a new one with zero balances.
+ * Idempotent — safe to call multiple times.
  */
 export async function createTeamWallet(teamId: number) {
   const existing = await getTeamWallet(teamId)
@@ -50,19 +48,14 @@ export async function createTeamWallet(teamId: number) {
 
   const [wallet] = await db
     .insert(teamWallets)
-    .values({
-      teamId,
-      balance: 0,
-      lockedBalance: 0,
-      totalEarned: 0,
-      totalSpent: 0,
-    })
+    .values({ teamId, balance: 0, lockedBalance: 0, totalEarned: 0, totalSpent: 0 })
     .returning()
   return wallet
 }
 
 /**
  * Increases team wallet balance and totalEarned by `amount`.
+ * Uses SQL arithmetic to avoid stale-read races.
  * Returns the updated wallet row.
  */
 export async function increaseTeamBalance(teamId: number, amount: number) {
@@ -71,9 +64,9 @@ export async function increaseTeamBalance(teamId: number, amount: number) {
   const [wallet] = await db
     .update(teamWallets)
     .set({
-      balance: sql`${teamWallets.balance} + ${amount}`,
+      balance:     sql`${teamWallets.balance}     + ${amount}`,
       totalEarned: sql`${teamWallets.totalEarned} + ${amount}`,
-      updatedAt: new Date(),
+      updatedAt:   new Date(),
     })
     .where(eq(teamWallets.teamId, teamId))
     .returning()
@@ -83,51 +76,52 @@ export async function increaseTeamBalance(teamId: number, amount: number) {
 }
 
 /**
- * Decreases team wallet balance and increases totalSpent by `amount`.
- * Throws if the resulting balance would go negative.
- * Returns the updated wallet row.
+ * Decreases team wallet balance atomically using a conditional SQL update.
+ * The UPDATE only executes when balance >= amount, preventing overdrafts
+ * without a separate SELECT read.
+ * Throws if the team wallet does not exist or balance is insufficient.
  */
 export async function decreaseTeamBalance(teamId: number, amount: number) {
   if (amount <= 0) throw new Error('amount must be positive')
 
-  const current = await getTeamWallet(teamId)
-  if (!current) throw new Error(`Team wallet not found for teamId=${teamId}`)
-  if (current.balance < amount) {
+  // Atomic conditional decrement — no separate SELECT needed
+  const [wallet] = await db
+    .update(teamWallets)
+    .set({
+      balance:    sql`${teamWallets.balance}    - ${amount}`,
+      totalSpent: sql`${teamWallets.totalSpent} + ${amount}`,
+      updatedAt:  new Date(),
+    })
+    .where(
+      sql`${teamWallets.teamId} = ${teamId} AND ${teamWallets.balance} >= ${amount}`,
+    )
+    .returning()
+
+  if (!wallet) {
+    // Distinguish "not found" from "insufficient balance"
+    const current = await getTeamWallet(teamId)
+    if (!current) throw new Error(`Team wallet not found for teamId=${teamId}`)
     throw new Error(
       `Insufficient team balance: has ${current.balance}, needs ${amount}`,
     )
   }
 
-  const [wallet] = await db
-    .update(teamWallets)
-    .set({
-      balance: sql`${teamWallets.balance} - ${amount}`,
-      totalSpent: sql`${teamWallets.totalSpent} + ${amount}`,
-      updatedAt: new Date(),
-    })
-    .where(eq(teamWallets.teamId, teamId))
-    .returning()
-
-  if (!wallet) throw new Error(`Team wallet not found for teamId=${teamId}`)
   return wallet
 }
 
-/**
- * Appends a transaction record for the team wallet.
- * Returns the inserted transaction row.
- */
+/** Appends a transaction record and returns the inserted row. */
 export async function addTeamTransaction(params: AddTeamTransactionParams) {
   const [tx] = await db
     .insert(teamTransactions)
     .values({
-      teamId: params.teamId,
-      userId: params.userId ?? null,
-      type: params.type,
-      amount: params.amount,
+      teamId:        params.teamId,
+      userId:        params.userId ?? null,
+      type:          params.type,
+      amount:        params.amount,
       balanceBefore: params.balanceBefore,
-      balanceAfter: params.balanceAfter,
-      description: params.description ?? null,
-      meta: params.meta ?? null,
+      balanceAfter:  params.balanceAfter,
+      description:   params.description ?? null,
+      meta:          params.meta ?? null,
     })
     .returning()
   return tx
@@ -135,71 +129,75 @@ export async function addTeamTransaction(params: AddTeamTransactionParams) {
 
 /**
  * Transfers a player's entire personal wallet balance into the team wallet.
- * - Zeroes the player's personal wallet balance.
- * - Records a personal wallet transaction (team_split debit).
- * - Credits the team wallet balance.
- * - Records a team_transaction (team_split credit).
- * No-op (returns silently) when the player's balance is 0.
+ * Runs inside a database transaction to guarantee atomicity.
+ * No-op when the player's personal balance is 0.
  */
 export async function transferPlayerBalanceToTeam(
   userId: number,
   teamId: number,
   teamName: string,
 ): Promise<void> {
-  const [playerWallet] = await db
-    .select()
-    .from(wallets)
-    .where(eq(wallets.userId, userId))
-    .limit(1)
+  await db.transaction(async (tx) => {
+    const [playerWallet] = await tx
+      .select()
+      .from(wallets)
+      .where(eq(wallets.userId, userId))
+      .limit(1)
 
-  if (!playerWallet || playerWallet.balance <= 0) return
+    if (!playerWallet || playerWallet.balance <= 0) return
 
-  const amount = playerWallet.balance
+    const amount = playerWallet.balance
 
-  // 1. Zero out the player's personal wallet
-  await db.update(wallets)
-    .set({
-      balance: 0,
-      totalSpent: sql`${wallets.totalSpent} + ${amount}`,
-      updatedAt: new Date(),
+    // Zero out the player's personal wallet
+    await tx.update(wallets)
+      .set({
+        balance:    0,
+        totalSpent: sql`${wallets.totalSpent} + ${amount}`,
+        updatedAt:  new Date(),
+      })
+      .where(eq(wallets.userId, userId))
+
+    // Personal wallet debit transaction
+    await tx.insert(transactions).values({
+      userId,
+      type:          'team_split',
+      amount:        -amount,
+      balanceBefore: amount,
+      balanceAfter:  0,
+      description:   `Balance transferred to team wallet on joining ${teamName}`,
+      meta:          { teamId },
     })
-    .where(eq(wallets.userId, userId))
 
-  // 2. Personal wallet transaction — debit
-  await db.insert(transactions).values({
-    userId,
-    type: 'team_split',
-    amount: -amount,
-    balanceBefore: amount,
-    balanceAfter: 0,
-    description: `Balance transferred to team wallet on joining ${teamName}`,
-    meta: { teamId },
-  })
+    // Credit the team wallet
+    const [teamWallet] = await tx
+      .select()
+      .from(teamWallets)
+      .where(eq(teamWallets.teamId, teamId))
+      .limit(1)
 
-  // 3. Credit the team wallet
-  const teamWallet = await getTeamWallet(teamId)
-  if (!teamWallet) throw new Error(`Team wallet not found for teamId=${teamId}`)
+    if (!teamWallet) throw new Error(`Team wallet not found for teamId=${teamId}`)
 
-  const teamBalanceBefore = teamWallet.balance
-  const teamBalanceAfter = teamBalanceBefore + amount
+    const teamBalanceBefore = teamWallet.balance
+    const teamBalanceAfter  = teamBalanceBefore + amount
 
-  await db.update(teamWallets)
-    .set({
-      balance: sql`${teamWallets.balance} + ${amount}`,
-      totalEarned: sql`${teamWallets.totalEarned} + ${amount}`,
-      updatedAt: new Date(),
+    await tx.update(teamWallets)
+      .set({
+        balance:     sql`${teamWallets.balance}     + ${amount}`,
+        totalEarned: sql`${teamWallets.totalEarned} + ${amount}`,
+        updatedAt:   new Date(),
+      })
+      .where(eq(teamWallets.teamId, teamId))
+
+    // Team credit transaction
+    await tx.insert(teamTransactions).values({
+      teamId,
+      userId,
+      type:          'team_split',
+      amount,
+      balanceBefore: teamBalanceBefore,
+      balanceAfter:  teamBalanceAfter,
+      description:   `Player balance transferred in on team join`,
+      meta:          { userId },
     })
-    .where(eq(teamWallets.teamId, teamId))
-
-  // 4. Team transaction — credit
-  await addTeamTransaction({
-    teamId,
-    userId,
-    type: 'team_split',
-    amount,
-    balanceBefore: teamBalanceBefore,
-    balanceAfter: teamBalanceAfter,
-    description: `Player balance transferred in on team join`,
-    meta: { userId },
   })
 }

@@ -103,7 +103,10 @@ export const invitations = pgTable('invitations', {
   status: varchar('status', { length: 20 }).default('pending').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   expiresAt: timestamp('expires_at'),
-})
+}, (t) => [
+  index('invitations_invited_user_idx').on(t.invitedUserId),
+  index('invitations_team_idx').on(t.teamId),
+])
 
 // ─── Join Requests ────────────────────────────────────────────────────────────
 export const joinRequests = pgTable('join_requests', {
@@ -113,7 +116,10 @@ export const joinRequests = pgTable('join_requests', {
   status: varchar('status', { length: 20 }).default('pending').notNull(),
   message: text('message'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [
+  index('join_requests_team_idx').on(t.teamId),
+  index('join_requests_user_idx').on(t.userId),
+])
 
 // ─── Tournaments ──────────────────────────────────────────────────────────────
 export const tournaments = pgTable('tournaments', {
@@ -147,6 +153,7 @@ export const tournamentTeams = pgTable('tournament_teams', {
   registeredAt: timestamp('registered_at').defaultNow().notNull(),
 }, (t) => [
   uniqueIndex('tournament_teams_unique').on(t.tournamentId, t.teamId),
+  index('tournament_teams_team_idx').on(t.teamId),
 ])
 
 // ─── Scrims ────────────────────────────────────────────────────────────────────
@@ -170,7 +177,10 @@ export const scrimRegistrations = pgTable('scrim_registrations', {
   scrimId: integer('scrim_id').notNull().references(() => scrims.id, { onDelete: 'cascade' }),
   teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
   registeredAt: timestamp('registered_at').defaultNow().notNull(),
-}, (t) => [uniqueIndex('scrim_reg_unique').on(t.scrimId, t.teamId)])
+}, (t) => [
+  uniqueIndex('scrim_reg_unique').on(t.scrimId, t.teamId),
+  index('scrim_reg_team_idx').on(t.teamId),
+])
 
 // ─── Notifications ────────────────────────────────────────────────────────────
 export const notifications = pgTable('notifications', {
@@ -182,7 +192,10 @@ export const notifications = pgTable('notifications', {
   data: jsonb('data'),
   isRead: boolean('is_read').default(false).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-}, (t) => [index('notif_user_idx').on(t.userId)])
+}, (t) => [
+  index('notif_user_idx').on(t.userId),
+  index('notif_user_read_idx').on(t.userId, t.isRead),
+])
 
 // ─── News ─────────────────────────────────────────────────────────────────────
 export const news = pgTable('news', {
@@ -212,7 +225,10 @@ export const withdrawRequests = pgTable('withdraw_requests', {
   adminNote: text('admin_note'),
   processedAt: timestamp('processed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [
+  index('withdraw_captain_idx').on(t.captainId),
+  index('withdraw_status_idx').on(t.status),
+])
 
 // ─── Recharge Requests ────────────────────────────────────────────────────────
 export const rechargeRequests = pgTable('recharge_requests', {
@@ -226,7 +242,10 @@ export const rechargeRequests = pgTable('recharge_requests', {
   processedBy: integer('processed_by').references(() => users.id),
   processedAt: timestamp('processed_at'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-})
+}, (t) => [
+  index('recharge_user_idx').on(t.userId),
+  index('recharge_status_idx').on(t.status),
+])
 
 // ─── App Releases ─────────────────────────────────────────────────────────────
 export const appReleases = pgTable('app_releases', {
