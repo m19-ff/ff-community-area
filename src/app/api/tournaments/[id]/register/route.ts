@@ -1,9 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { tournaments, tournamentTeams, teams, teamMembers, wallets, transactions, notifications } from '@/db/schema'
+import { tournaments, tournamentTeams, teams, teamMembers, notifications } from '@/db/schema'
 import { eq, and, count } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
-import { adjustTeamPointsForUser } from '@/lib/teamPoints'
+import {
+  getTeamWallet,
+  decreaseTeamBalance,
+  addTeamTransaction,
+} from '@/lib/teamWallet'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(request)
@@ -39,31 +43,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     .from(tournamentTeams).where(eq(tournamentTeams.tournamentId, tournId))
   if (registeredCount >= tournament.maxTeams) return apiError('Tournament is full', 400)
 
-  // Deduct registration cost from captain's wallet
+  // Deduct registration cost from team wallet
   if (tournament.registrationCost > 0) {
-    const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, auth.userId)).limit(1)
-    if (!wallet || wallet.balance < tournament.registrationCost) {
-      return apiError("Your wallet doesn't have enough points to register. Please recharge.", 400)
+    const teamWallet = await getTeamWallet(myTeam.id)
+    if (!teamWallet || teamWallet.balance < tournament.registrationCost) {
+      return apiError("Your team wallet doesn't have enough points to register. Please recharge.", 400)
     }
 
-    const newBalance = wallet.balance - tournament.registrationCost
-    await db.update(wallets).set({
-      balance: newBalance,
-      totalSpent: wallet.totalSpent + tournament.registrationCost,
-    }).where(eq(wallets.userId, auth.userId))
+    const balanceBefore = teamWallet.balance
+    const updatedWallet = await decreaseTeamBalance(myTeam.id, tournament.registrationCost)
 
-    await db.insert(transactions).values({
+    await addTeamTransaction({
+      teamId: myTeam.id,
       userId: auth.userId,
       type: 'deduct_tournament',
       amount: -tournament.registrationCost,
-      balanceBefore: wallet.balance,
-      balanceAfter: newBalance,
+      balanceBefore,
+      balanceAfter: updatedWallet.balance,
       description: `Tournament registration: ${tournament.name}`,
       meta: { tournamentId: tournId },
     })
-
-    // Keep team points in sync (captain's wallet was deducted)
-    await adjustTeamPointsForUser(auth.userId, -tournament.registrationCost)
   }
 
   // Register team

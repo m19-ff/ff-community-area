@@ -1,6 +1,6 @@
 import 'server-only'
 import { db } from '@/db'
-import { teamWallets, teamTransactions } from '@/db/schema'
+import { teamWallets, teamTransactions, wallets, transactions } from '@/db/schema'
 import { eq, sql } from 'drizzle-orm'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -131,4 +131,75 @@ export async function addTeamTransaction(params: AddTeamTransactionParams) {
     })
     .returning()
   return tx
+}
+
+/**
+ * Transfers a player's entire personal wallet balance into the team wallet.
+ * - Zeroes the player's personal wallet balance.
+ * - Records a personal wallet transaction (team_split debit).
+ * - Credits the team wallet balance.
+ * - Records a team_transaction (team_split credit).
+ * No-op (returns silently) when the player's balance is 0.
+ */
+export async function transferPlayerBalanceToTeam(
+  userId: number,
+  teamId: number,
+  teamName: string,
+): Promise<void> {
+  const [playerWallet] = await db
+    .select()
+    .from(wallets)
+    .where(eq(wallets.userId, userId))
+    .limit(1)
+
+  if (!playerWallet || playerWallet.balance <= 0) return
+
+  const amount = playerWallet.balance
+
+  // 1. Zero out the player's personal wallet
+  await db.update(wallets)
+    .set({
+      balance: 0,
+      totalSpent: sql`${wallets.totalSpent} + ${amount}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(wallets.userId, userId))
+
+  // 2. Personal wallet transaction — debit
+  await db.insert(transactions).values({
+    userId,
+    type: 'team_split',
+    amount: -amount,
+    balanceBefore: amount,
+    balanceAfter: 0,
+    description: `Balance transferred to team wallet on joining ${teamName}`,
+    meta: { teamId },
+  })
+
+  // 3. Credit the team wallet
+  const teamWallet = await getTeamWallet(teamId)
+  if (!teamWallet) throw new Error(`Team wallet not found for teamId=${teamId}`)
+
+  const teamBalanceBefore = teamWallet.balance
+  const teamBalanceAfter = teamBalanceBefore + amount
+
+  await db.update(teamWallets)
+    .set({
+      balance: sql`${teamWallets.balance} + ${amount}`,
+      totalEarned: sql`${teamWallets.totalEarned} + ${amount}`,
+      updatedAt: new Date(),
+    })
+    .where(eq(teamWallets.teamId, teamId))
+
+  // 4. Team transaction — credit
+  await addTeamTransaction({
+    teamId,
+    userId,
+    type: 'team_split',
+    amount,
+    balanceBefore: teamBalanceBefore,
+    balanceAfter: teamBalanceAfter,
+    description: `Player balance transferred in on team join`,
+    meta: { userId },
+  })
 }

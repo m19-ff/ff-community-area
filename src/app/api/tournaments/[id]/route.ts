@@ -3,6 +3,11 @@ import { db } from '@/db'
 import { tournaments, tournamentTeams, teams, teamMembers, users, wallets, transactions, notifications } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, requireAdmin, apiSuccess, apiError } from '@/lib/api'
+import {
+  getTeamWallet,
+  increaseTeamBalance,
+  addTeamTransaction,
+} from '@/lib/teamWallet'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -62,6 +67,58 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   // If publishing, notify all users
   if (body.status === 'published' && t.status !== 'published') {
     // Could batch-notify here; omitted for brevity
+  }
+
+  // ── Award prizes to teams ──────────────────────────────────────────────────
+  // Expected body.prizes: Array<{ teamId: number, placement: number, prizePoints: number }>
+  if (Array.isArray(body.prizes) && body.prizes.length > 0) {
+    for (const prize of body.prizes as { teamId: number; placement: number; prizePoints: number }[]) {
+      if (!prize.teamId || !prize.placement || !prize.prizePoints || prize.prizePoints <= 0) continue
+
+      // Update tournament_teams row
+      await db.update(tournamentTeams).set({
+        placement: prize.placement,
+        prizeAwarded: prize.prizePoints,
+        status: 'finished',
+      }).where(and(
+        eq(tournamentTeams.tournamentId, tournId),
+        eq(tournamentTeams.teamId, prize.teamId),
+      ))
+
+      // Credit team wallet
+      const teamWallet = await getTeamWallet(prize.teamId)
+      if (!teamWallet) continue
+
+      const balanceBefore = teamWallet.balance
+      const updatedWallet = await increaseTeamBalance(prize.teamId, prize.prizePoints)
+
+      await addTeamTransaction({
+        teamId: prize.teamId,
+        userId: admin.userId,
+        type: 'earn_tournament',
+        amount: prize.prizePoints,
+        balanceBefore,
+        balanceAfter: updatedWallet.balance,
+        description: `Tournament prize: ${t.name} — placement #${prize.placement}`,
+        meta: { tournamentId: tournId, placement: prize.placement },
+      })
+
+      // Notify all team members
+      const members = await db
+        .select({ userId: teamMembers.userId })
+        .from(teamMembers)
+        .where(eq(teamMembers.teamId, prize.teamId))
+
+      for (const m of members) {
+        await db.insert(notifications).values({
+          userId: m.userId,
+          type: 'general',
+          title: 'Tournament Prize Awarded',
+          body: `Your team finished #${prize.placement} in ${t.name} and received ${prize.prizePoints} points!`,
+          data: { tournamentId: tournId, teamId: prize.teamId, prizePoints: prize.prizePoints },
+        })
+      }
+    }
   }
 
   return apiSuccess({ tournament: updated })

@@ -4,6 +4,7 @@ import { invitations, teams, users, teamMembers, notifications } from '@/db/sche
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { syncTeamPoints } from '@/lib/teamPoints'
+import { transferPlayerBalanceToTeam } from '@/lib/teamWallet'
 
 // Get my invitations
 export async function GET(request: NextRequest) {
@@ -77,7 +78,10 @@ export async function PATCH(request: NextRequest) {
     data: { teamId: inv.teamId, userId: auth.userId },
   })
 
-  // Sync team points: add the new member's wallet balance to the total
+  // Transfer player's personal wallet balance into the team wallet
+  await transferPlayerBalanceToTeam(auth.userId, inv.teamId, team.name)
+
+  // Sync team points
   await syncTeamPoints(inv.teamId)
 
   return apiSuccess({ message: 'Joined team successfully', teamId: inv.teamId })

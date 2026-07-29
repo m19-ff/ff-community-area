@@ -4,6 +4,7 @@ import { teams, teamMembers, users } from '@/db/schema'
 import { eq, like, desc, sql, count } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError, paginate } from '@/lib/api'
 import { syncTeamPoints } from '@/lib/teamPoints'
+import { createTeamWallet } from '@/lib/teamWallet'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -67,6 +68,9 @@ export async function POST(request: NextRequest) {
 
     // Update user role to captain
     await db.update(users).set({ role: 'captain' }).where(eq(users.id, auth.userId))
+
+    // Create team wallet
+    await createTeamWallet(team.id)
 
     // Initialise team.points = captain's wallet balance
     await syncTeamPoints(team.id)

@@ -1,9 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { withdrawRequests, wallets, transactions, notifications, users } from '@/db/schema'
+import { withdrawRequests, notifications, users, teamMembers, teams } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireAuth, requireAdmin, apiSuccess, apiError, paginate } from '@/lib/api'
-import { adjustTeamPointsForUser } from '@/lib/teamPoints'
+import {
+  getTeamWallet,
+  decreaseTeamBalance,
+  addTeamTransaction,
+} from '@/lib/teamWallet'
 
 const MIN_POINTS = 5000           // 5000 pts = $50
 const COMMISSION_RATE = 0.20      // 20%
@@ -18,9 +22,13 @@ export async function POST(request: NextRequest) {
   if (!user) return apiError('User not found', 404)
   if (user.isBanned) return apiError('Your account is banned', 403)
 
-  // Get wallet
-  const [wallet] = await db.select().from(wallets).where(eq(wallets.userId, auth.userId)).limit(1)
-  if (!wallet) return apiError('Wallet not found', 404)
+  // Must be a captain
+  const [myTeam] = await db.select().from(teams).where(eq(teams.captainId, auth.userId)).limit(1)
+  if (!myTeam) return apiError('Only team captains can withdraw from the team wallet', 403)
+
+  // Get team wallet
+  const teamWallet = await getTeamWallet(myTeam.id)
+  if (!teamWallet) return apiError('Team wallet not found', 404)
 
   const body = await request.json()
   const { amountPoints, method, paymentAddress, message } = body
@@ -34,8 +42,8 @@ export async function POST(request: NextRequest) {
   if (isNaN(points) || points < MIN_POINTS) {
     return apiError(`Minimum withdrawal is ${MIN_POINTS.toLocaleString()} points ($${MIN_POINTS / POINTS_PER_USD})`, 400)
   }
-  if (wallet.balance < points) {
-    return apiError(`Insufficient balance. You have ${wallet.balance.toLocaleString()} pts, need ${points.toLocaleString()} pts`, 400)
+  if (teamWallet.balance < points) {
+    return apiError(`Insufficient team balance. Team has ${teamWallet.balance.toLocaleString()} pts, need ${points.toLocaleString()} pts`, 400)
   }
 
   // Calculate commission and net payout
@@ -45,29 +53,25 @@ export async function POST(request: NextRequest) {
   const commissionUsd = (commissionPoints / POINTS_PER_USD).toFixed(2)
   const netUsd = (netPoints / POINTS_PER_USD).toFixed(2)
 
-  const newBalance = wallet.balance - points
+  const balanceBefore = teamWallet.balance
 
-  // Deduct full amount from wallet balance
-  await db.update(wallets)
-    .set({
-      balance: newBalance,
-      totalSpent: wallet.totalSpent + points,
-    })
-    .where(eq(wallets.userId, auth.userId))
+  // Deduct full amount from team wallet
+  const updatedWallet = await decreaseTeamBalance(myTeam.id, points)
 
-  // Record transaction (gross deduction)
-  await db.insert(transactions).values({
+  // Team transaction (gross deduction)
+  await addTeamTransaction({
+    teamId: myTeam.id,
     userId: auth.userId,
     type: 'withdraw',
     amount: -points,
-    balanceBefore: wallet.balance,
-    balanceAfter: newBalance,
+    balanceBefore,
+    balanceAfter: updatedWallet.balance,
     description: `Withdrawal: ${points.toLocaleString()} pts gross | 20% commission: ${commissionPoints} pts | Net payout: $${netUsd}`,
   })
 
-  // Create withdraw request — teamId=1 is a placeholder workaround (schema constraint)
+  // Create withdraw request
   const [req] = await db.insert(withdrawRequests).values({
-    teamId: 1,
+    teamId: myTeam.id,
     captainId: auth.userId,
     amountUsd: netUsd,
     amountPoints: netPoints,
@@ -77,17 +81,14 @@ export async function POST(request: NextRequest) {
     status: 'pending',
   }).returning()
 
-  // Notify user
+  // Notify captain
   await db.insert(notifications).values({
     userId: auth.userId,
     type: 'withdrawal_approved',
     title: 'Withdrawal Request Submitted',
-    body: `Your withdrawal of ${points.toLocaleString()} pts has been submitted. Net payout after 20% commission: $${netUsd}.`,
+    body: `Your team withdrawal of ${points.toLocaleString()} pts has been submitted. Net payout after 20% commission: $${netUsd}.`,
     data: { withdrawalId: req.id },
   })
-
-  // Keep team points in sync (wallet was deducted)
-  await adjustTeamPointsForUser(auth.userId, -points)
 
   return apiSuccess({
     request: req,

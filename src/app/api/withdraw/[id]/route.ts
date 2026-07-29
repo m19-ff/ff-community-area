@@ -1,8 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { withdrawRequests, teams, notifications } from '@/db/schema'
+import { withdrawRequests, notifications } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
+import {
+  getTeamWallet,
+  increaseTeamBalance,
+  addTeamTransaction,
+} from '@/lib/teamWallet'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(request)
@@ -18,11 +23,27 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
   const { status, adminNote } = body
   if (!['approved', 'rejected', 'paid'].includes(status)) return apiError('Invalid status', 400)
 
-  // If rejecting, refund points to team
+  // If rejecting a pending request, refund the gross amount back to the team wallet.
+  // The gross deducted = netPoints / (1 - COMMISSION_RATE) but we stored netPoints.
+  // Reconstruct gross: netPoints = gross * 0.8  =>  gross = netPoints / 0.8
   if (status === 'rejected' && wr.status === 'pending') {
-    const [team] = await db.select().from(teams).where(eq(teams.id, wr.teamId)).limit(1)
-    if (team) {
-      await db.update(teams).set({ points: team.points + wr.amountPoints }).where(eq(teams.id, team.id))
+    const grossPoints = Math.round(wr.amountPoints / 0.8)
+
+    const teamWallet = await getTeamWallet(wr.teamId)
+    if (teamWallet) {
+      const balanceBefore = teamWallet.balance
+      const updatedWallet = await increaseTeamBalance(wr.teamId, grossPoints)
+
+      await addTeamTransaction({
+        teamId: wr.teamId,
+        userId: admin.userId,
+        type: 'admin_award',
+        amount: grossPoints,
+        balanceBefore,
+        balanceAfter: updatedWallet.balance,
+        description: `Withdrawal rejected — ${grossPoints} pts refunded to team wallet`,
+        meta: { withdrawRequestId: reqId },
+      })
     }
   }
 
