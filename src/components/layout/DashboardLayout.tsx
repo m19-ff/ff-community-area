@@ -5,16 +5,34 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import MobileNav from './MobileNav'
 
+const ADMIN_ROLES = ['admin', 'superadmin', 'assistant']
+
+// Pages that are only meaningful for regular players — an admin landing on one
+// of these (due to stale localStorage) should be bounced to the admin dashboard.
+const PLAYER_ONLY_PAGES = new Set([
+  'home', 'my-team', 'wallet', 'team-chat',
+  'leaderboard', 'seasons', 'achievements',
+])
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { token, user, setUser, setWallet, setMyTeam, setUnreadCount, sidebarOpen, mobileNavOpen } = useAppStore()
+  const { token, user, setUser, setWallet, setMyTeam, setUnreadCount, sidebarOpen, mobileNavOpen, currentPage, navigate } = useAppStore()
 
   useEffect(() => {
     if (!token) return
-    // Load profile
+    // Load profile fresh from DB on every mount — this is the source of truth.
+    // If the refreshed role is privileged but the current page is a player-only
+    // page (stale localStorage or first load after role promotion), redirect to
+    // the admin dashboard immediately.
     apiCall('/auth/profile', {}, token).then(res => {
       if (res.success && res.data) {
         const d = res.data as { user: import('@/store/useAppStore').User | null; wallet: import('@/store/useAppStore').Wallet | null; team: import('@/store/useAppStore').Team | null }
-        if (d.user) setUser(d.user)
+        if (d.user) {
+          setUser(d.user)
+          // Re-navigate if role is privileged and we're on a player-only page
+          if (ADMIN_ROLES.includes(d.user.role) && PLAYER_ONLY_PAGES.has(currentPage)) {
+            navigate('admin')
+          }
+        }
         if (d.wallet) setWallet(d.wallet)
         setMyTeam(d.team ?? null)
       }
