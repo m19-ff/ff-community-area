@@ -489,6 +489,69 @@ export const leaderboardSnapshots = pgTable('leaderboard_snapshots', {
   index('leaderboard_cat_idx').on(t.category, t.period),
 ])
 
+// ─── Tournament Groups ────────────────────────────────────────────────────────
+export const tournamentGroups = pgTable('tournament_groups', {
+  id: serial('id').primaryKey(),
+  tournamentId: integer('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+  name: varchar('name', { length: 10 }).notNull(),   // 'A', 'B', 'C', …
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('t_group_tournament_idx').on(t.tournamentId),
+  uniqueIndex('t_group_unique').on(t.tournamentId, t.name),
+])
+
+// ─── Tournament Group Teams (one team → one group per tournament) ─────────────
+export const tournamentGroupTeams = pgTable('tournament_group_teams', {
+  id: serial('id').primaryKey(),
+  groupId: integer('group_id').notNull().references(() => tournamentGroups.id, { onDelete: 'cascade' }),
+  tournamentId: integer('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  assignedAt: timestamp('assigned_at').defaultNow().notNull(),
+}, (t) => [
+  // A team can only be in one group per tournament
+  uniqueIndex('t_group_team_unique').on(t.tournamentId, t.teamId),
+  index('t_group_teams_group_idx').on(t.groupId),
+])
+
+// ─── Tournament Matches ───────────────────────────────────────────────────────
+export const tournamentMatches = pgTable('tournament_matches', {
+  id: serial('id').primaryKey(),
+  tournamentId: integer('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+  groupId: integer('group_id').references(() => tournamentGroups.id, { onDelete: 'set null' }),
+  name: varchar('name', { length: 200 }),
+  roomId: varchar('room_id', { length: 100 }),
+  roomPassword: varchar('room_password', { length: 100 }),
+  matchStartTime: timestamp('match_start_time'),
+  roomRevealAt: timestamp('room_reveal_at'),
+  status: varchar('status', { length: 30 }).default('upcoming').notNull(), // upcoming | room_revealed | in_progress | finished
+  roomNotifiedAt: timestamp('room_notified_at'),
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('t_match_tournament_idx').on(t.tournamentId),
+  index('t_match_group_idx').on(t.groupId),
+  index('t_match_reveal_idx').on(t.roomRevealAt, t.status),
+])
+
+// ─── Match Room Notification Log ──────────────────────────────────────────────
+export const matchRoomLogs = pgTable('match_room_logs', {
+  id: serial('id').primaryKey(),
+  matchId: integer('match_id').notNull().references(() => tournamentMatches.id, { onDelete: 'cascade' }),
+  tournamentId: integer('tournament_id').notNull().references(() => tournaments.id, { onDelete: 'cascade' }),
+  groupId: integer('group_id').references(() => tournamentGroups.id, { onDelete: 'set null' }),
+  groupName: varchar('group_name', { length: 10 }),
+  sentBy: integer('sent_by').references(() => users.id, { onDelete: 'set null' }),
+  sentByName: varchar('sent_by_name', { length: 100 }),
+  roomId: varchar('room_id', { length: 100 }),
+  roomPassword: varchar('room_password', { length: 100 }),
+  recipientCount: integer('recipient_count').default(0).notNull(),
+  sentAt: timestamp('sent_at').defaultNow().notNull(),
+}, (t) => [
+  index('match_room_log_match_idx').on(t.matchId),
+  index('match_room_log_tourn_idx').on(t.tournamentId),
+])
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ one, many }) => ({
   wallet: one(wallets, { fields: [users.id], references: [wallets.userId] }),

@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useAppStore, apiCall } from '@/store/useAppStore'
-import { Plus, Edit, Trash2, Eye } from 'lucide-react'
+import { Plus, Edit, Trash2, Swords } from 'lucide-react'
 import { PageLoader } from '../../ui/LoadingSpinner'
 import Modal from '../../ui/Modal'
 
@@ -14,7 +14,7 @@ const EMPTY_FORM = {
 }
 
 export default function AdminTournamentsPage() {
-  const { token, showToast } = useAppStore()
+  const { token, showToast, navigate } = useAppStore()
   const [tournaments, setTournaments] = useState<Tournament[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
@@ -98,6 +98,13 @@ export default function AdminTournamentsPage() {
                 <td className="hidden md:table-cell text-small">{t.prizePool.toLocaleString()} pts</td>
                 <td>
                   <div className="flex gap-1">
+                    <button
+                      title="Manage Matches"
+                      onClick={() => navigate('admin-tournament-matches', { tournamentId: t.id, tournamentName: t.name })}
+                      className="btn btn-secondary btn-icon btn-sm"
+                    >
+                      <Swords size={13} />
+                    </button>
                     <button
                       onClick={() => {
                         setForm({ name: t.name, type: t.type, registrationCost: t.registrationCost, prizePool: t.prizePool, description: '', rules: '', maxTeams: t.maxTeams, registrationDeadline: '', startDate: t.startDate || '', endDate: '', status: t.status })

@@ -7,11 +7,12 @@
  *   1. Room reveal notifications for scrims whose roomRevealAt has passed
  *   2. Season expiry checks
  */
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { scrims, scrimRegistrations, teamMembers, seasons } from '@/db/schema'
+import { scrims, scrimRegistrations, teamMembers, seasons, tournamentMatches, tournamentGroups, tournaments } from '@/db/schema'
 import { eq, lte, and, isNotNull, lt } from 'drizzle-orm'
 import { sendPushToUsers } from '@/lib/fcm'
+import { sendMatchRoomNotification } from '../tournaments/[id]/matches/route'
 import { apiSuccess } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
@@ -84,6 +85,50 @@ export async function GET(_request: NextRequest) {
     await db.update(seasons).set({ isActive: false, isFinished: true }).where(eq(seasons.id, s.id))
   }
   results.expiredSeasons = expiredSeasons.length
+
+  // ── 3. Tournament Match Room Reveals ─────────────────────────────────────────
+  const dueMatches = await db
+    .select({
+      id:             tournamentMatches.id,
+      tournamentId:   tournamentMatches.tournamentId,
+      groupId:        tournamentMatches.groupId,
+      name:           tournamentMatches.name,
+      roomId:         tournamentMatches.roomId,
+      roomPassword:   tournamentMatches.roomPassword,
+      matchStartTime: tournamentMatches.matchStartTime,
+      roomRevealAt:   tournamentMatches.roomRevealAt,
+      status:         tournamentMatches.status,
+      roomNotifiedAt: tournamentMatches.roomNotifiedAt,
+      createdAt:      tournamentMatches.createdAt,
+      updatedAt:      tournamentMatches.updatedAt,
+      createdBy:      tournamentMatches.createdBy,
+      groupName:      tournamentGroups.name,
+    })
+    .from(tournamentMatches)
+    .leftJoin(tournamentGroups, eq(tournamentMatches.groupId, tournamentGroups.id))
+    .where(and(
+      lte(tournamentMatches.roomRevealAt, now),
+      isNotNull(tournamentMatches.roomId),
+      eq(tournamentMatches.status, 'upcoming'),
+    ))
+
+  let matchNotifCount = 0
+  for (const match of dueMatches) {
+    const [tournament] = await db
+      .select({ name: tournaments.name })
+      .from(tournaments)
+      .where(eq(tournaments.id, match.tournamentId))
+      .limit(1)
+
+    await sendMatchRoomNotification({
+      match,
+      tournamentName: tournament?.name || `Tournament ${match.tournamentId}`,
+      sentByUserId:   0,
+      sentByName:     'System (Auto)',
+    })
+    matchNotifCount++
+  }
+  results.tournamentMatchReveals = matchNotifCount
 
   return apiSuccess(results)
 }

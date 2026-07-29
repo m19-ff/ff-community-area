@@ -39,6 +39,7 @@ import AchievementsPage from './pages/AchievementsPage'
 import TeamChatPage from './pages/TeamChatPage'
 import AdminSeasonsPage from './pages/admin/AdminSeasonsPage'
 import AdminTeamDetailPage from './pages/admin/AdminTeamDetailPage'
+import AdminTournamentMatchesPage from './pages/admin/AdminTournamentMatchesPage'
 
 // ── Semver comparison ─────────────────────────────────────────────────────────
 function isOlderVersion(a: string, b: string): boolean {
@@ -63,6 +64,7 @@ const DASHBOARD_PAGES = [
   'team-wallet-history', 'player-profile', 'team-profile',
   'leaderboard', 'seasons', 'achievements', 'team-chat',
   'admin', 'admin-users', 'admin-teams', 'admin-team-detail', 'admin-tournaments',
+  'admin-tournament-matches',
   'admin-scrims', 'admin-news', 'admin-withdrawals', 'admin-recharge',
   'admin-settings', 'admin-app', 'admin-analytics', 'admin-seasons',
 ]
@@ -99,8 +101,9 @@ function PageContent() {
     case 'achievements':       return <AchievementsPage />
     case 'team-chat':          return <TeamChatPage />
     case 'admin-seasons':      return <AdminSeasonsPage />
-    case 'admin-team-detail':  return <AdminTeamDetailPage />
-    default:                   return <HomePage />
+    case 'admin-team-detail':         return <AdminTeamDetailPage />
+    case 'admin-tournament-matches':  return <AdminTournamentMatchesPage />
+    default:                          return <HomePage />
   }
 }
 

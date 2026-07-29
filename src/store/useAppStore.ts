@@ -77,6 +77,7 @@ export type Page =
   | 'team-chat'
   | 'admin-seasons'
   | 'admin-team-detail'
+  | 'admin-tournament-matches'
 
 interface AppState {
   // Auth
