@@ -32,9 +32,15 @@ export default function MyTeamPage() {
   const isCaptain = user?.role === 'captain' || user?.id === team?.captainId
 
   const load = async () => {
-    if (myTeam) {
+    setLoading(true)
+    // Always fetch fresh team data from the API — do not rely on cached myTeam
+    const profileRes = await apiCall<{ team: typeof myTeam }>('/auth/profile', {}, token)
+    const freshTeam = profileRes.success && profileRes.data ? profileRes.data.team ?? null : null
+    if (freshTeam !== undefined) setMyTeam(freshTeam)
+
+    if (freshTeam) {
       const [tRes, rRes, iRes] = await Promise.all([
-        apiCall(`/teams/${myTeam.id}`, {}, token),
+        apiCall(`/teams/${freshTeam.id}`, {}, token),
         isCaptain ? apiCall('/teams/join-request', {}, token) : Promise.resolve({ success: false, data: null, message: '' }),
         apiCall('/teams/invitations', {}, token),
       ])
@@ -42,13 +48,14 @@ export default function MyTeamPage() {
       if (rRes.success && rRes.data) setRequests((rRes.data as { requests: JoinRequest[] }).requests || [])
       if (iRes.success && iRes.data) setInvitations((iRes.data as { invitations: Invitation[] }).invitations || [])
     } else {
+      setTeam(null)
       const iRes = await apiCall('/teams/invitations', {}, token)
       if (iRes.success && iRes.data) setInvitations((iRes.data as { invitations: Invitation[] }).invitations || [])
     }
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [myTeam])
+  useEffect(() => { load() }, [token])
 
   const createTeam = async () => {
     if (!newTeamName.trim() || newTeamName.trim().length < 3) { showToast('Team name must be at least 3 characters', 'error'); return }

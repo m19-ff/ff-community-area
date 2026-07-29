@@ -16,7 +16,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const d = res.data as { user: import('@/store/useAppStore').User | null; wallet: import('@/store/useAppStore').Wallet | null; team: import('@/store/useAppStore').Team | null }
         if (d.user) setUser(d.user)
         if (d.wallet) setWallet(d.wallet)
-        if (d.team) setMyTeam(d.team)
+        setMyTeam(d.team ?? null)
       }
     })
     // Load unread count
