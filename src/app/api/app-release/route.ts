@@ -4,16 +4,6 @@ import { appReleases, users, notifications } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
 
-// Raise body size limit to 200 MB for APK uploads
-// (Vercel default is 4.5 MB which silently truncates large files)
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '200mb',
-    },
-    responseLimit: '200mb',
-  },
-}
 
 // Safe release shape — no binary apkData
 type ReleaseRow = {
