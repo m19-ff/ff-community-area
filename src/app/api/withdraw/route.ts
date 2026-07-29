@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { withdrawRequests, wallets, transactions, notifications, users } from '@/db/schema'
 import { eq, desc } from 'drizzle-orm'
 import { requireAuth, requireAdmin, apiSuccess, apiError, paginate } from '@/lib/api'
+import { adjustTeamPointsForUser } from '@/lib/teamPoints'
 
 const MIN_POINTS = 5000           // 5000 pts = $50
 const COMMISSION_RATE = 0.20      // 20%
@@ -44,10 +45,12 @@ export async function POST(request: NextRequest) {
   const commissionUsd = (commissionPoints / POINTS_PER_USD).toFixed(2)
   const netUsd = (netPoints / POINTS_PER_USD).toFixed(2)
 
+  const newBalance = wallet.balance - points
+
   // Deduct full amount from wallet balance
   await db.update(wallets)
     .set({
-      balance: wallet.balance - points,
+      balance: newBalance,
       totalSpent: wallet.totalSpent + points,
     })
     .where(eq(wallets.userId, auth.userId))
@@ -58,14 +61,13 @@ export async function POST(request: NextRequest) {
     type: 'withdraw',
     amount: -points,
     balanceBefore: wallet.balance,
-    balanceAfter: wallet.balance - points,
+    balanceAfter: newBalance,
     description: `Withdrawal: ${points.toLocaleString()} pts gross | 20% commission: ${commissionPoints} pts | Net payout: $${netUsd}`,
   })
 
-  // Create withdraw request — store as userId in captainId, teamId = 0 workaround
-  // Use amountUsd as gross, store net in message for admin reference
+  // Create withdraw request — teamId=1 is a placeholder workaround (schema constraint)
   const [req] = await db.insert(withdrawRequests).values({
-    teamId: 1, // placeholder — not used for user withdrawals (schema constraint)
+    teamId: 1,
     captainId: auth.userId,
     amountUsd: netUsd,
     amountPoints: netPoints,
@@ -83,6 +85,9 @@ export async function POST(request: NextRequest) {
     body: `Your withdrawal of ${points.toLocaleString()} pts has been submitted. Net payout after 20% commission: $${netUsd}.`,
     data: { withdrawalId: req.id },
   })
+
+  // Keep team points in sync (wallet was deducted)
+  await adjustTeamPointsForUser(auth.userId, -points)
 
   return apiSuccess({
     request: req,

@@ -3,6 +3,7 @@ import { db } from '@/db'
 import { teams, teamMembers, users } from '@/db/schema'
 import { eq, like, desc, sql, count } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError, paginate } from '@/lib/api'
+import { syncTeamPoints } from '@/lib/teamPoints'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -67,7 +68,13 @@ export async function POST(request: NextRequest) {
     // Update user role to captain
     await db.update(users).set({ role: 'captain' }).where(eq(users.id, auth.userId))
 
-    return apiSuccess({ team }, 201)
+    // Initialise team.points = captain's wallet balance
+    await syncTeamPoints(team.id)
+
+    // Return updated team with synced points
+    const [updatedTeam] = await db.select().from(teams).where(eq(teams.id, team.id)).limit(1)
+
+    return apiSuccess({ team: updatedTeam }, 201)
   } catch (error) {
     console.error('[teams POST]', error)
     return apiError('Failed to create team', 500)
