@@ -4,31 +4,38 @@ import Avatar from '../ui/Avatar'
 import {
   Home, Trophy, Swords, Users, Shield, Wallet, Newspaper,
   Bell, Settings, LogOut, ChevronLeft, ChevronRight,
-  LayoutDashboard, UserCog, Building, FileText, DollarSign, RefreshCw, SlidersHorizontal, Smartphone
+  LayoutDashboard, UserCog, Building, FileText, DollarSign, RefreshCw, SlidersHorizontal, Smartphone,
+  BarChart2, Calendar, Star, MessageCircle
 } from 'lucide-react'
 
 const PLAYER_NAV = [
-  { icon: Home, label: 'Home', page: 'home' },
-  { icon: Trophy, label: 'Tournaments', page: 'tournaments' },
-  { icon: Swords, label: 'Scrims', page: 'scrims' },
-  { icon: Users, label: 'Teams', page: 'teams' },
-  { icon: Shield, label: 'My Team', page: 'my-team' },
-  { icon: Wallet, label: 'Wallet', page: 'wallet' },
-  { icon: Newspaper, label: 'News', page: 'news' },
-  { icon: Bell, label: 'Notifications', page: 'notifications' },
+  { icon: Home,          label: 'Home',          page: 'home' },
+  { icon: Trophy,        label: 'Tournaments',   page: 'tournaments' },
+  { icon: Swords,        label: 'Scrims',        page: 'scrims' },
+  { icon: Users,         label: 'Teams',         page: 'teams' },
+  { icon: Shield,        label: 'My Team',       page: 'my-team' },
+  { icon: MessageCircle, label: 'Team Chat',     page: 'team-chat' },
+  { icon: BarChart2,     label: 'Leaderboard',   page: 'leaderboard' },
+  { icon: Calendar,      label: 'Seasons',       page: 'seasons' },
+  { icon: Star,          label: 'Achievements',  page: 'achievements' },
+  { icon: Wallet,        label: 'Wallet',        page: 'wallet' },
+  { icon: Newspaper,     label: 'News',          page: 'news' },
+  { icon: Bell,          label: 'Notifications', page: 'notifications' },
+  { icon: Settings,      label: 'Settings',      page: 'settings' },
 ]
 
 const ADMIN_NAV = [
-  { icon: LayoutDashboard, label: 'Dashboard', page: 'admin' },
-  { icon: UserCog, label: 'Users', page: 'admin-users' },
-  { icon: Building, label: 'Teams', page: 'admin-teams' },
-  { icon: Trophy, label: 'Tournaments', page: 'admin-tournaments' },
-  { icon: Swords, label: 'Scrims', page: 'admin-scrims' },
-  { icon: FileText, label: 'News', page: 'admin-news' },
-  { icon: DollarSign, label: 'Withdrawals', page: 'admin-withdrawals' },
-  { icon: RefreshCw, label: 'Recharge', page: 'admin-recharge' },
-  { icon: Smartphone, label: 'App', page: 'admin-app' },
-  { icon: SlidersHorizontal, label: 'Settings', page: 'admin-settings' },
+  { icon: LayoutDashboard,  label: 'Dashboard',   page: 'admin' },
+  { icon: UserCog,          label: 'Users',        page: 'admin-users' },
+  { icon: Building,         label: 'Teams',        page: 'admin-teams' },
+  { icon: Trophy,           label: 'Tournaments',  page: 'admin-tournaments' },
+  { icon: Swords,           label: 'Scrims',       page: 'admin-scrims' },
+  { icon: Calendar,         label: 'Seasons',      page: 'admin-seasons' },
+  { icon: FileText,         label: 'News',         page: 'admin-news' },
+  { icon: DollarSign,       label: 'Withdrawals',  page: 'admin-withdrawals' },
+  { icon: RefreshCw,        label: 'Recharge',     page: 'admin-recharge' },
+  { icon: Smartphone,       label: 'App',          page: 'admin-app' },
+  { icon: SlidersHorizontal,label: 'Settings',     page: 'admin-settings' },
 ]
 
 export default function Sidebar() {

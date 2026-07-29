@@ -1,13 +1,14 @@
 'use client'
 import { useAppStore } from '@/store/useAppStore'
-import { Home, Trophy, Swords, Users, Shield } from 'lucide-react'
+import { Home, Trophy, Swords, Shield, BarChart2, MessageCircle } from 'lucide-react'
 
 const NAV_ITEMS = [
-  { icon: Home, label: 'Home', page: 'home' },
-  { icon: Trophy, label: 'Tournaments', page: 'tournaments' },
-  { icon: Swords, label: 'Scrims', page: 'scrims' },
-  { icon: Users, label: 'Teams', page: 'teams' },
-  { icon: Shield, label: 'My Team', page: 'my-team' },
+  { icon: Home,          label: 'Home',        page: 'home' },
+  { icon: Trophy,        label: 'Tournaments', page: 'tournaments' },
+  { icon: Swords,        label: 'Scrims',      page: 'scrims' },
+  { icon: Shield,        label: 'My Team',     page: 'my-team' },
+  { icon: BarChart2,     label: 'Leaderboard', page: 'leaderboard' },
+  { icon: MessageCircle, label: 'Chat',        page: 'team-chat' },
 ]
 
 export default function MobileNav() {

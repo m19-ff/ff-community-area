@@ -71,6 +71,11 @@ export type Page =
   | 'player-profile'
   | 'team-profile'
   | 'admin-analytics'
+  | 'leaderboard'
+  | 'seasons'
+  | 'achievements'
+  | 'team-chat'
+  | 'admin-seasons'
 
 interface AppState {
   // Auth

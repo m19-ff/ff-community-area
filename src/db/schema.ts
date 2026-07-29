@@ -370,6 +370,125 @@ export const rateLimits = pgTable('rate_limits', {
   index('rate_limit_window_idx').on(t.windowStart),
 ])
 
+// ─── Seasons ─────────────────────────────────────────────────────────────────
+export const seasons = pgTable('seasons', {
+  id: serial('id').primaryKey(),
+  name: varchar('name', { length: 100 }).notNull(),
+  startDate: timestamp('start_date').notNull(),
+  endDate: timestamp('end_date').notNull(),
+  rewards: jsonb('rewards'),          // { rank: 1, prize: 5000, badge: 'Champion' }[]
+  stats: jsonb('stats'),              // aggregate stats snapshot
+  rankings: jsonb('rankings'),        // final rankings snapshot
+  isActive: boolean('is_active').default(false).notNull(),
+  isFinished: boolean('is_finished').default(false).notNull(),
+  createdBy: integer('created_by').references(() => users.id),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [index('seasons_active_idx').on(t.isActive)])
+
+// ─── Season Rankings ──────────────────────────────────────────────────────────
+export const seasonRankings = pgTable('season_rankings', {
+  id: serial('id').primaryKey(),
+  seasonId: integer('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  teamId: integer('team_id').references(() => teams.id, { onDelete: 'set null' }),
+  rank: integer('rank').notNull(),
+  score: integer('score').default(0).notNull(),
+  wins: integer('wins').default(0).notNull(),
+  tournaments: integer('tournaments').default(0).notNull(),
+  prizeEarned: integer('prize_earned').default(0).notNull(),
+  rewardClaimed: boolean('reward_claimed').default(false).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('season_rankings_season_idx').on(t.seasonId),
+  index('season_rankings_user_idx').on(t.userId),
+  index('season_rankings_team_idx').on(t.teamId),
+])
+
+// ─── Achievements ─────────────────────────────────────────────────────────────
+export const achievements = pgTable('achievements', {
+  id: serial('id').primaryKey(),
+  key: varchar('key', { length: 100 }).notNull(),  // 'first_tournament', '10_wins', etc.
+  name: varchar('name', { length: 100 }).notNull(),
+  description: text('description').notNull(),
+  icon: varchar('icon', { length: 50 }).default('🏆').notNull(),
+  condition: jsonb('condition').notNull(),          // { type: 'wins', value: 10 }
+  points: integer('points').default(0).notNull(),
+  rarity: varchar('rarity', { length: 20 }).default('common').notNull(), // common/rare/epic/legendary
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [uniqueIndex('achievements_key_idx').on(t.key)])
+
+export const userAchievements = pgTable('user_achievements', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  achievementId: integer('achievement_id').notNull().references(() => achievements.id, { onDelete: 'cascade' }),
+  unlockedAt: timestamp('unlocked_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('user_achievements_unique').on(t.userId, t.achievementId),
+  index('user_achievements_user_idx').on(t.userId),
+])
+
+// ─── Team Chat ────────────────────────────────────────────────────────────────
+export const chatMessages = pgTable('chat_messages', {
+  id: serial('id').primaryKey(),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  type: varchar('type', { length: 20 }).default('message').notNull(), // message | system | image
+  content: text('content').notNull(),
+  imageUrl: text('image_url'),
+  readBy: jsonb('read_by').default([]).notNull(), // userId[]
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('chat_team_idx').on(t.teamId),
+  index('chat_created_idx').on(t.teamId, t.createdAt),
+])
+
+// ─── Match History ────────────────────────────────────────────────────────────
+export const matchHistory = pgTable('match_history', {
+  id: serial('id').primaryKey(),
+  type: varchar('type', { length: 20 }).notNull(), // tournament | scrim
+  tournamentId: integer('tournament_id').references(() => tournaments.id, { onDelete: 'set null' }),
+  scrimId: integer('scrim_id').references(() => scrims.id, { onDelete: 'set null' }),
+  teamId: integer('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
+  placement: integer('placement'),
+  kills: integer('kills').default(0).notNull(),
+  points: integer('points').default(0).notNull(),
+  prizeEarned: integer('prize_earned').default(0).notNull(),
+  playerStats: jsonb('player_stats'), // [{ userId, kills, deaths, assists }]
+  playedAt: timestamp('played_at').defaultNow().notNull(),
+}, (t) => [
+  index('match_history_team_idx').on(t.teamId),
+  index('match_history_type_idx').on(t.type),
+  index('match_history_date_idx').on(t.playedAt),
+])
+
+// ─── Player Statistics ────────────────────────────────────────────────────────
+export const playerStats = pgTable('player_stats', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  totalMatches: integer('total_matches').default(0).notNull(),
+  totalKills: integer('total_kills').default(0).notNull(),
+  totalDeaths: integer('total_deaths').default(0).notNull(),
+  totalWins: integer('total_wins').default(0).notNull(),
+  top3Finishes: integer('top3_finishes').default(0).notNull(),
+  totalPlacementSum: integer('total_placement_sum').default(0).notNull(),
+  totalPrizeEarned: integer('total_prize_earned').default(0).notNull(),
+  adWatchedTotal: integer('ad_watched_total').default(0).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [uniqueIndex('player_stats_user_idx').on(t.userId)])
+
+// ─── Leaderboards ─────────────────────────────────────────────────────────────
+export const leaderboardSnapshots = pgTable('leaderboard_snapshots', {
+  id: serial('id').primaryKey(),
+  category: varchar('category', { length: 50 }).notNull(), // top_teams|top_players|top_wallets|top_winners|top_mvp|top_earners
+  period: varchar('period', { length: 20 }).notNull(),     // daily|weekly|monthly|all_time
+  date: varchar('date', { length: 10 }).notNull(),         // YYYY-MM-DD snapshot date
+  data: jsonb('data').notNull(),                           // ranked array
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('leaderboard_unique').on(t.category, t.period, t.date),
+  index('leaderboard_cat_idx').on(t.category, t.period),
+])
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ one, many }) => ({
   wallet: one(wallets, { fields: [users.id], references: [wallets.userId] }),

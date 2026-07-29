@@ -33,6 +33,11 @@ import VerifyEmailPage from './pages/VerifyEmailPage'
 import TeamWalletHistoryPage from './pages/TeamWalletHistoryPage'
 import PlayerProfilePage from './pages/PlayerProfilePage'
 import TeamProfilePage from './pages/TeamProfilePage'
+import LeaderboardPage from './pages/LeaderboardPage'
+import SeasonPage from './pages/SeasonPage'
+import AchievementsPage from './pages/AchievementsPage'
+import TeamChatPage from './pages/TeamChatPage'
+import AdminSeasonsPage from './pages/admin/AdminSeasonsPage'
 
 // ── Semver comparison ─────────────────────────────────────────────────────────
 function isOlderVersion(a: string, b: string): boolean {
@@ -55,9 +60,10 @@ const DASHBOARD_PAGES = [
   'teams', 'team-detail', 'my-team', 'wallet', 'news',
   'news-detail', 'notifications', 'settings',
   'team-wallet-history', 'player-profile', 'team-profile',
+  'leaderboard', 'seasons', 'achievements', 'team-chat',
   'admin', 'admin-users', 'admin-teams', 'admin-tournaments',
   'admin-scrims', 'admin-news', 'admin-withdrawals', 'admin-recharge',
-  'admin-settings', 'admin-app', 'admin-analytics',
+  'admin-settings', 'admin-app', 'admin-analytics', 'admin-seasons',
 ]
 
 function PageContent() {
@@ -87,6 +93,11 @@ function PageContent() {
     case 'admin-settings':     return <AdminSettingsPage />
     case 'admin-app':          return <AdminAppPage />
     case 'admin-analytics':    return <AdminAnalyticsPage />
+    case 'leaderboard':        return <LeaderboardPage />
+    case 'seasons':            return <SeasonPage />
+    case 'achievements':       return <AchievementsPage />
+    case 'team-chat':          return <TeamChatPage />
+    case 'admin-seasons':      return <AdminSeasonsPage />
     default:                   return <HomePage />
   }
 }

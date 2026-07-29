@@ -27,6 +27,12 @@ const PAGE_TITLES: Record<string, string> = {
   'player-profile':  'Player Profile',
   'team-profile':    'Team Profile',
   'team-wallet-history': 'Wallet History',
+  leaderboard:   'Leaderboard',
+  seasons:       'Seasons',
+  achievements:  'Achievements',
+  'team-chat':   'Team Chat',
+  'admin-seasons': 'Manage Seasons',
+  settings:      'Settings',
 }
 
 export default function TopBar() {
