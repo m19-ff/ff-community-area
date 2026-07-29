@@ -154,9 +154,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       }
     }
 
-    // Reset member roles to player
+    // Reset member roles to player — but NEVER touch admin/superadmin accounts.
     for (const m of members) {
-      await tx.update(users).set({ role: 'player' }).where(eq(users.id, m.userId))
+      const [memberUser] = await tx.select({ role: users.role }).from(users).where(eq(users.id, m.userId)).limit(1)
+      if (memberUser && !['admin', 'superadmin'].includes(memberUser.role)) {
+        await tx.update(users).set({ role: 'player' }).where(eq(users.id, m.userId))
+      }
     }
 
     // Delete the team (cascades teamMembers, teamWallets, teamTransactions via FK)

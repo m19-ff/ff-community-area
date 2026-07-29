@@ -11,6 +11,11 @@ export async function POST(request: NextRequest) {
   const auth = await requireAuth(request)
   if (!auth) return apiError('Unauthorized', 401)
 
+  // Admin/superadmin accounts cannot join teams as players
+  if (['admin', 'superadmin'].includes(auth.role)) {
+    return apiError('Admin accounts cannot join player teams', 403)
+  }
+
   const inTeam = await db.select().from(teamMembers).where(eq(teamMembers.userId, auth.userId)).limit(1)
   if (inTeam.length > 0) return apiError('You are already in a team', 400)
 

@@ -35,6 +35,11 @@ export async function POST(
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
   if (!user) return apiError('User not found', 404)
 
+  // Admins and superadmins cannot be added to teams as regular members
+  if (['admin', 'superadmin'].includes(user.role)) {
+    return apiError('Admin accounts cannot be added to teams', 403)
+  }
+
   // Check user is not already in a team
   const [existingMembership] = await db
     .select()
@@ -88,9 +93,10 @@ export async function DELETE(
     .delete(teamMembers)
     .where(and(eq(teamMembers.teamId, teamId), eq(teamMembers.userId, userId)))
 
-  // Revert role to player if they had assistant
+  // Revert role to player only for non-admin accounts with assistant role.
+  // NEVER touch admin/superadmin roles via team operations.
   const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1)
-  if (user && user.role === 'assistant') {
+  if (user && user.role === 'assistant' && !['admin', 'superadmin'].includes(user.role)) {
     await db.update(users).set({ role: 'player' }).where(eq(users.id, userId))
   }
 

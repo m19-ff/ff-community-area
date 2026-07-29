@@ -57,6 +57,11 @@ export async function PATCH(request: NextRequest) {
     return apiSuccess({ message: 'Invitation declined' })
   }
 
+  // Admin/superadmin accounts cannot accept team invitations
+  if (['admin', 'superadmin'].includes(auth.role)) {
+    return apiError('Admin accounts cannot join player teams', 403)
+  }
+
   // Accept
   const inTeam = await db.select().from(teamMembers).where(eq(teamMembers.userId, auth.userId)).limit(1)
   if (inTeam.length > 0) return apiError('You are already in a team', 400)

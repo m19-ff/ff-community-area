@@ -185,14 +185,25 @@ export async function PATCH(
       .limit(1)
     if (!membership) return apiError('New captain must be a team member', 400)
 
+    // Guard: cannot transfer captaincy to or from an admin/superadmin account
+    const [oldCaptainUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, team.captainId)).limit(1)
+    const [newCaptainUser] = await db.select({ role: users.role }).from(users).where(eq(users.id, newCaptainId)).limit(1)
+
+    if (oldCaptainUser && ['admin', 'superadmin'].includes(oldCaptainUser.role)) {
+      return apiError('Cannot transfer captaincy from an admin account', 403)
+    }
+    if (newCaptainUser && ['admin', 'superadmin'].includes(newCaptainUser.role)) {
+      return apiError('Cannot assign captaincy to an admin account', 403)
+    }
+
     await db.transaction(async (tx) => {
-      // Demote old captain
+      // Demote old captain to player (safe — already confirmed not admin)
       await tx
         .update(users)
         .set({ role: 'player' })
         .where(eq(users.id, team.captainId))
 
-      // Promote new captain
+      // Promote new captain (safe — already confirmed not admin)
       await tx
         .update(users)
         .set({ role: 'captain' })

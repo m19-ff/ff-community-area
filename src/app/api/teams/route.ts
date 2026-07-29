@@ -46,6 +46,11 @@ export async function POST(request: NextRequest) {
   if (!auth) return apiError('Unauthorized', 401)
 
   try {
+    // Admin/superadmin accounts are not permitted to create player teams
+    if (['admin', 'superadmin'].includes(auth.role)) {
+      return apiError('Admin accounts cannot create player teams', 403)
+    }
+
     // Check if user already in a team
     const existing = await db.select().from(teamMembers).where(eq(teamMembers.userId, auth.userId)).limit(1)
     if (existing.length > 0) return apiError('You are already in a team', 400)
@@ -66,8 +71,11 @@ export async function POST(request: NextRequest) {
 
     await db.insert(teamMembers).values({ teamId: team.id, userId: auth.userId })
 
-    // Update user role to captain
-    await db.update(users).set({ role: 'captain' }).where(eq(users.id, auth.userId))
+    // Update user role to captain — but NEVER downgrade admin/superadmin accounts.
+    // Admins can own a team for management purposes while keeping their admin role.
+    if (!['admin', 'superadmin'].includes(auth.role)) {
+      await db.update(users).set({ role: 'captain' }).where(eq(users.id, auth.userId))
+    }
 
     // Create team wallet
     const wallet = await createTeamWallet(team.id)
