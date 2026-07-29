@@ -1,10 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useAppStore, apiCall } from '@/store/useAppStore'
+import type { Page } from '@/store/useAppStore'
 import { Bell, CheckCheck, Trophy, Users, Zap, Newspaper, Swords } from 'lucide-react'
 import { PageLoader } from '../ui/LoadingSpinner'
 
-type NotifItem = { id: number; type: string; title: string; body: string; isRead: boolean; createdAt: string }
+type NotifItem = {
+  id: number; type: string; title: string; body: string; isRead: boolean; createdAt: string
+  data?: { deepLink?: string; tournamentId?: number; scrimId?: number } | null
+}
 
 const TYPE_ICONS: Record<string, { icon: typeof Bell; color: string }> = {
   invitation: { icon: Users, color: '#3b82f6' },
@@ -18,8 +22,31 @@ const TYPE_ICONS: Record<string, { icon: typeof Bell; color: string }> = {
   general: { icon: Bell, color: 'var(--text-secondary)' },
 }
 
+function resolveDeepLink(notif: NotifItem): Page | null {
+  const d = notif.data
+  if (d?.deepLink) {
+    if (d.deepLink.startsWith('/tournaments/')) return 'tournament-detail'
+    if (d.deepLink.startsWith('/scrims/'))      return 'scrims'
+  }
+  switch (notif.type) {
+    case 'tournament_published':
+    case 'tournament_reminder':
+    case 'registration_accepted':
+      return 'tournaments'
+    case 'scrim_created':
+      return 'scrims'
+    case 'invitation':
+    case 'join_request':
+      return 'my-team'
+    case 'withdrawal_approved':
+      return 'wallet'
+    default:
+      return null
+  }
+}
+
 export default function NotificationsPage() {
-  const { token, setUnreadCount, showToast } = useAppStore()
+  const { token, setUnreadCount, showToast, navigate } = useAppStore()
   const [items, setItems] = useState<NotifItem[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -36,13 +63,25 @@ export default function NotificationsPage() {
 
   useEffect(() => { load() }, [token])
 
-  const markRead = async (id?: number) => {
+  const markRead = async (id?: number, notif?: NotifItem) => {
     const body = id ? { notificationId: id } : { markAllRead: true }
     const res = await apiCall('/notifications', { method: 'PATCH', body: JSON.stringify(body) }, token)
     if (res.success) {
       if (id) {
         setItems(prev => prev.map(n => n.id === id ? { ...n, isRead: true } : n))
         setUnreadCount(Math.max(0, useAppStore.getState().unreadCount - 1))
+        // Navigate to deep link
+        if (notif) {
+          const page = resolveDeepLink(notif)
+          if (page) {
+            const d = notif.data
+            if (d?.tournamentId && page === 'tournament-detail') {
+              navigate(page, { id: d.tournamentId })
+            } else {
+              navigate(page)
+            }
+          }
+        }
       } else {
         setItems(prev => prev.map(n => ({ ...n, isRead: true })))
         setUnreadCount(0)
@@ -85,7 +124,7 @@ export default function NotificationsPage() {
           return (
             <div
               key={notif.id}
-              onClick={() => !notif.isRead && markRead(notif.id)}
+              onClick={() => markRead(notif.id, notif)}
               className="card p-4 flex items-start gap-3 cursor-pointer transition-colors"
               style={{
                 background: notif.isRead ? 'var(--bg-card)' : 'rgba(227,28,28,0.05)',

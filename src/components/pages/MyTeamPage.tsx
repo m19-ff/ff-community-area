@@ -1,17 +1,17 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useAppStore, apiCall } from '@/store/useAppStore'
-import { Plus, Search, UserPlus, Crown, Trash2, UserX, Check, X, Shield } from 'lucide-react'
+import { Plus, Search, UserPlus, Crown, Trash2, UserX, Check, X, Shield, LogOut, Wallet, History } from 'lucide-react'
 import { PageLoader } from '../ui/LoadingSpinner'
 import Avatar from '../ui/Avatar'
 import Modal from '../ui/Modal'
 
 type Member = { id: number; gameName: string; gameUid: string; profilePicture: string | null; role: string; joinedAt: string }
 type TeamDetail = {
-  id: number; name: string; logo: string | null; points: number; captainId: number; members: Member[]
+  id: number; name: string; logo: string | null; points: number; walletBalance: number; captainId: number; members: Member[]
 }
 type JoinRequest = { id: number; status: string; message: string; createdAt: string; user: { id: number; gameName: string; gameUid: string; profilePicture: string | null } }
-type Invitation = { id: number; status: string; team: { id: number; name: string; logo: string | null; points: number }; createdAt: string }
+type Invitation = { id: number; status: string; team: { id: number; name: string; logo: string | null; walletBalance?: number; points?: number }; createdAt: string }
 
 export default function MyTeamPage() {
   const { token, user, myTeam, setMyTeam, navigate, showToast } = useAppStore()
@@ -25,6 +25,8 @@ export default function MyTeamPage() {
   const [inviteUid, setInviteUid] = useState('')
   const [creating, setCreating] = useState(false)
   const [inviting, setInviting] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [tab, setTab] = useState<'members' | 'requests' | 'invitations'>('members')
 
   const isCaptain = user?.role === 'captain' || user?.id === team?.captainId
@@ -107,10 +109,37 @@ export default function MyTeamPage() {
     }
   }
 
-  const removePlayer = async (memberId: number) => {
-    if (!confirm('Remove this player from the team?')) return
-    // Note: would need a PATCH endpoint for removing members
-    showToast('Feature available in full API', 'info')
+  const leaveTeam = async () => {
+    if (!team) return
+    if (!confirm(`Leave ${team.name}? Your equal share of the team wallet will be returned to your personal wallet.`)) return
+    setLeaving(true)
+    const res = await apiCall(`/teams/${team.id}/leave`, { method: 'POST' }, token)
+    setLeaving(false)
+    if (res.success) {
+      const d = res.data as { shareReceived?: number }
+      showToast(d?.shareReceived ? `Left team — ${d.shareReceived.toLocaleString()} pts returned to your wallet` : 'Left team')
+      setMyTeam(null)
+      setTeam(null)
+      load()
+    } else {
+      showToast(res.message || 'Failed to leave team', 'error')
+    }
+  }
+
+  const deleteTeam = async () => {
+    if (!team) return
+    if (!confirm(`Delete ${team.name}? The team wallet balance will be equally distributed among all members.`)) return
+    setDeleting(true)
+    const res = await apiCall(`/teams/${team.id}`, { method: 'DELETE' }, token)
+    setDeleting(false)
+    if (res.success) {
+      showToast('Team deleted and funds distributed')
+      setMyTeam(null)
+      setTeam(null)
+      load()
+    } else {
+      showToast(res.message || 'Failed to delete team', 'error')
+    }
   }
 
   if (loading) return <PageLoader />
@@ -147,7 +176,7 @@ export default function MyTeamPage() {
                     <div>
                       <div className="font-semibold">{inv.team?.name}</div>
                       <div className="text-small" style={{ color: 'var(--text-muted)' }}>
-                        {inv.team?.points?.toLocaleString()} pts
+                        {(inv.team?.walletBalance ?? inv.team?.points ?? 0).toLocaleString()} pts
                       </div>
                     </div>
                   </div>
@@ -190,6 +219,8 @@ export default function MyTeamPage() {
     )
   }
 
+  const walletBalance = team?.walletBalance ?? 0
+
   return (
     <div style={{ padding: '1.5rem', paddingBottom: '5rem' }}>
       {/* Team Header */}
@@ -205,16 +236,33 @@ export default function MyTeamPage() {
               {isCaptain && <Crown size={16} style={{ color: '#f59e0b' }} />}
             </div>
             <div className="text-small" style={{ color: 'var(--text-secondary)' }}>
-              {team?.points?.toLocaleString()} team points · {team?.members?.length}/6 players
+              <span style={{ color: '#8b5cf6', fontWeight: 700 }}>
+                <Wallet size={12} style={{ display: 'inline', marginRight: 4 }} />
+                {walletBalance.toLocaleString()} team pts
+              </span>
+              {' '}· {team?.members?.length}/6 players
             </div>
           </div>
-          {isCaptain && (
-            <div className="flex gap-2">
-              <button onClick={() => setShowInviteModal(true)} className="btn btn-primary btn-sm">
-                <UserPlus size={14} /> Invite Player
+          <div className="flex gap-2 flex-wrap">
+            <button onClick={() => navigate('team-wallet-history')} className="btn btn-ghost btn-sm">
+              <History size={14} /> Wallet History
+            </button>
+            {isCaptain && (
+              <>
+                <button onClick={() => setShowInviteModal(true)} className="btn btn-primary btn-sm">
+                  <UserPlus size={14} /> Invite
+                </button>
+                <button onClick={deleteTeam} disabled={deleting} className="btn btn-danger btn-sm">
+                  <Trash2 size={14} /> {deleting ? '...' : 'Delete Team'}
+                </button>
+              </>
+            )}
+            {!isCaptain && (
+              <button onClick={leaveTeam} disabled={leaving} className="btn btn-secondary btn-sm">
+                <LogOut size={14} /> {leaving ? '...' : 'Leave Team'}
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -255,11 +303,6 @@ export default function MyTeamPage() {
                 <div className="text-small" style={{ color: 'var(--text-muted)' }}>UID: {member.gameUid}</div>
               </div>
               <span className="badge badge-gray">{member.role}</span>
-              {isCaptain && member.id !== user?.id && (
-                <button onClick={() => removePlayer(member.id)} className="btn btn-ghost btn-icon btn-sm">
-                  <UserX size={15} style={{ color: '#ef4444' }} />
-                </button>
-              )}
             </div>
           ))}
         </div>
@@ -299,7 +342,9 @@ export default function MyTeamPage() {
               <Avatar src={inv.team?.logo} name={inv.team?.name} size={44} />
               <div className="flex-1">
                 <div className="font-semibold">{inv.team?.name}</div>
-                <div className="text-small" style={{ color: 'var(--text-muted)' }}>{inv.team?.points?.toLocaleString()} pts</div>
+                <div className="text-small" style={{ color: 'var(--text-muted)' }}>
+                  {(inv.team?.walletBalance ?? inv.team?.points ?? 0).toLocaleString()} pts
+                </div>
               </div>
               <div className="flex gap-2">
                 <button onClick={() => respondToInvitation(inv.id, 'accept')} className="btn btn-success btn-sm">Accept</button>

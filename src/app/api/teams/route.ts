@@ -1,9 +1,8 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { teams, teamMembers, users } from '@/db/schema'
-import { eq, like, desc, sql, count } from 'drizzle-orm'
+import { teams, teamMembers, users, teamWallets } from '@/db/schema'
+import { eq, like, desc, count, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError, paginate } from '@/lib/api'
-import { syncTeamPoints } from '@/lib/teamPoints'
 import { createTeamWallet } from '@/lib/teamWallet'
 
 export async function GET(request: NextRequest) {
@@ -19,7 +18,8 @@ export async function GET(request: NextRequest) {
     id: teams.id,
     name: teams.name,
     logo: teams.logo,
-    points: teams.points,
+    points: teams.points,                          // kept for backward compat
+    walletBalance: sql<number>`coalesce(${teamWallets.balance}, 0)`,
     captainId: teams.captainId,
     totalTournaments: teams.totalTournaments,
     createdAt: teams.createdAt,
@@ -27,9 +27,10 @@ export async function GET(request: NextRequest) {
   })
     .from(teams)
     .leftJoin(teamMembers, eq(teams.id, teamMembers.teamId))
+    .leftJoin(teamWallets, eq(teams.id, teamWallets.teamId))
     .where(conditions)
-    .groupBy(teams.id)
-    .orderBy(desc(teams.points))
+    .groupBy(teams.id, teamWallets.balance)
+    .orderBy(desc(sql`coalesce(${teamWallets.balance}, 0)`))
     .limit(take)
     .offset(offset)
 
@@ -72,10 +73,7 @@ export async function POST(request: NextRequest) {
     // Create team wallet
     await createTeamWallet(team.id)
 
-    // Initialise team.points = captain's wallet balance
-    await syncTeamPoints(team.id)
-
-    // Return updated team with synced points
+    // Return updated team
     const [updatedTeam] = await db.select().from(teams).where(eq(teams.id, team.id)).limit(1)
 
     return apiSuccess({ team: updatedTeam }, 201)

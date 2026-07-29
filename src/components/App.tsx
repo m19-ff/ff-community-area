@@ -29,6 +29,7 @@ import AdminRechargePage from './pages/admin/AdminRechargePage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
 import AdminAppPage from './pages/admin/AdminAppPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
+import TeamWalletHistoryPage from './pages/TeamWalletHistoryPage'
 
 // ── Semver comparison: returns true if `a` is strictly older than `b` ────────
 function isOlderVersion(a: string, b: string): boolean {
@@ -50,6 +51,7 @@ const DASHBOARD_PAGES = [
   'home', 'tournaments', 'tournament-detail', 'scrims',
   'teams', 'team-detail', 'my-team', 'wallet', 'news',
   'news-detail', 'notifications', 'settings',
+  'team-wallet-history',
   'admin', 'admin-users', 'admin-teams', 'admin-tournaments',
   'admin-scrims', 'admin-news', 'admin-withdrawals', 'admin-recharge',
   'admin-settings', 'admin-app',
@@ -68,6 +70,7 @@ function PageContent() {
     case 'wallet':             return <WalletPage />
     case 'news':               return <NewsPage />
     case 'notifications':      return <NotificationsPage />
+    case 'team-wallet-history': return <TeamWalletHistoryPage />
     case 'admin':              return <AdminPage />
     case 'admin-users':        return <AdminUsersPage />
     case 'admin-teams':        return <AdminTeamsPage />

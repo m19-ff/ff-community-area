@@ -5,7 +5,7 @@ import { Search, Trash2, Eye } from 'lucide-react'
 import { PageLoader } from '../../ui/LoadingSpinner'
 import Avatar from '../../ui/Avatar'
 
-type Team = { id: number; name: string; logo: string | null; points: number; captainId: number; memberCount: number; totalTournaments: number }
+type Team = { id: number; name: string; logo: string | null; points: number; walletBalance?: number; captainId: number; memberCount: number; totalTournaments: number }
 
 export default function AdminTeamsPage() {
   const { token, showToast } = useAppStore()
@@ -63,7 +63,7 @@ export default function AdminTeamsPage() {
                 </td>
                 <td className="hidden sm:table-cell text-small">{team.memberCount}/6</td>
                 <td>
-                  <span className="font-semibold" style={{ color: 'var(--accent-red)' }}>{team.points.toLocaleString()}</span>
+                  <span className="font-semibold" style={{ color: 'var(--accent-red)' }}>{(team.walletBalance ?? team.points ?? 0).toLocaleString()}</span>
                 </td>
                 <td className="hidden md:table-cell text-small">{team.totalTournaments}</td>
                 <td>

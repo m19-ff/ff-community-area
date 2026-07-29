@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { teams, teamMembers, users } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { teams, teamMembers, users, wallets, transactions, teamWallets } from '@/db/schema'
+import { eq, and, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
+import { getTeamWallet, addTeamTransaction } from '@/lib/teamWallet'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -23,9 +24,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .innerJoin(users, eq(teamMembers.userId, users.id))
     .where(eq(teamMembers.teamId, teamId))
 
+  // Attach team wallet balance
+  const teamWallet = await getTeamWallet(teamId)
+
   const captain = members.find(m => m.id === team.captainId)
 
-  return apiSuccess({ team: { ...team, members, captain } })
+  return apiSuccess({
+    team: {
+      ...team,
+      walletBalance: teamWallet?.balance ?? 0,
+      members,
+      captain,
+    },
+  })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -66,15 +77,71 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return apiError('Only captain can delete team', 403)
   }
 
-  // Fetch members before deletion so we can reset their roles
+  // Fetch all members before deletion
   const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId))
 
-  // Reset member roles to player — each member keeps their own wallet balance
-  // (team.points = sum of member wallets, so there is no separate treasury to split)
+  // Distribute team wallet balance equally among all members
+  const teamWallet = await getTeamWallet(teamId)
+  const teamBalance = teamWallet?.balance ?? 0
+  const memberCount = members.length
+
+  if (teamBalance > 0 && memberCount > 0) {
+    const share = Math.floor(teamBalance / memberCount)
+    let distributed = 0
+
+    for (const m of members) {
+      const memberShare = distributed + share <= teamBalance ? share : Math.max(0, teamBalance - distributed)
+      if (memberShare <= 0) continue
+
+      const [playerWallet] = await db.select().from(wallets).where(eq(wallets.userId, m.userId)).limit(1)
+      if (playerWallet) {
+        const pBalBefore = playerWallet.balance
+        const pBalAfter = pBalBefore + memberShare
+
+        await db.update(wallets)
+          .set({
+            balance: sql`${wallets.balance} + ${memberShare}`,
+            totalEarned: sql`${wallets.totalEarned} + ${memberShare}`,
+            updatedAt: new Date(),
+          })
+          .where(eq(wallets.userId, m.userId))
+
+        await db.insert(transactions).values({
+          userId: m.userId,
+          type: 'team_split',
+          amount: memberShare,
+          balanceBefore: pBalBefore,
+          balanceAfter: pBalAfter,
+          description: `Team ${team.name} dissolved — equal share distributed`,
+          meta: { teamId },
+        })
+
+        // Record team_transaction for each payout
+        if (teamWallet) {
+          await addTeamTransaction({
+            teamId,
+            userId: m.userId,
+            type: 'team_split',
+            amount: -memberShare,
+            balanceBefore: teamBalance - distributed,
+            balanceAfter: teamBalance - distributed - memberShare,
+            description: `Share paid out to member on team dissolution`,
+            meta: { userId: m.userId },
+          })
+        }
+
+        distributed += memberShare
+      }
+    }
+  }
+
+  // Reset member roles to player
   for (const m of members) {
     await db.update(users).set({ role: 'player' }).where(eq(users.id, m.userId))
   }
 
+  // Delete team (cascades teamMembers, teamWallets, teamTransactions)
   await db.delete(teams).where(eq(teams.id, teamId))
-  return apiSuccess({ message: 'Team deleted' })
+
+  return apiSuccess({ message: 'Team deleted and funds distributed to members' })
 }

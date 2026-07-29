@@ -23,6 +23,7 @@ export interface Team {
   name: string
   logo?: string | null
   points: number
+  walletBalance?: number
   captainId: number
   totalTournaments?: number
   memberCount?: number
@@ -38,7 +39,7 @@ export interface Notification {
   data?: Record<string, unknown>
 }
 
-type Page =
+export type Page =
   | 'landing'
   | 'login'
   | 'register'
@@ -67,6 +68,7 @@ type Page =
   | 'admin-recharge'
   | 'admin-settings'
   | 'admin-app'
+  | 'team-wallet-history'
 
 interface AppState {
   // Auth
