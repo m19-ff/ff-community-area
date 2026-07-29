@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { teams, teamMembers, users, invitations, notifications } from '@/db/schema'
+import { teams, teamMembers, users, invitations } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
+import { sendPushToUsers } from '@/lib/fcm'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAuth(request)
@@ -43,13 +44,16 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     expiresAt: expiry,
   }).returning()
 
-  // Create notification
-  await db.insert(notifications).values({
-    userId: target.id,
-    type: 'invitation',
-    title: 'Team Invitation',
-    body: `You have been invited to join team ${team.name}`,
-    data: { invitationId: inv.id, teamId, teamName: team.name },
+  // Push + in-app notification
+  void sendPushToUsers({
+    userIds: [target.id],
+    payload: {
+      title: '📨 Team Invitation',
+      body:  `You have been invited to join team ${team.name}`,
+      data:  { deepLink: '/my-team', invitationId: String(inv.id), teamId: String(teamId) },
+    },
+    notifType: 'invitation',
+    notifData: { invitationId: inv.id, teamId, teamName: team.name, deepLink: '/my-team' },
   })
 
   return apiSuccess({ invitation: inv, message: `Invitation sent to ${target.gameName}` })

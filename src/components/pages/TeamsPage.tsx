@@ -12,7 +12,7 @@ type Team = {
 }
 
 export default function TeamsPage() {
-  const { token, myTeam, showToast } = useAppStore()
+  const { token, myTeam, showToast, navigate } = useAppStore()
   const [teams, setTeams] = useState<Team[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -79,9 +79,18 @@ export default function TeamsPage() {
           return (
             <div key={team.id} className="card p-5">
               <div className="flex items-center gap-3 mb-4">
-                <Avatar src={team.logo} name={team.name} size={48} />
+                <Avatar
+                  src={team.logo}
+                  name={team.name}
+                  size={48}
+                  className="cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => navigate('team-profile', { teamId: team.id })}
+                />
                 <div className="flex-1 min-w-0">
-                  <h3 className="font-bold truncate">{team.name}</h3>
+                  <h3
+                    className="font-bold truncate cursor-pointer hover:underline"
+                    onClick={() => navigate('team-profile', { teamId: team.id })}
+                  >{team.name}</h3>
                   <div className="text-small" style={{ color: 'var(--text-muted)' }}>
                     {team.memberCount}/6 players
                   </div>

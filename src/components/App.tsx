@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { useAppStore } from '@/store/useAppStore'
+import { useAppStore, apiCall } from '@/store/useAppStore'
 import Toast from './ui/Toast'
 import ForceUpdateScreen from './ui/ForceUpdateScreen'
 import LandingPage from './pages/LandingPage'
@@ -28,10 +28,13 @@ import AdminWithdrawalsPage from './pages/admin/AdminWithdrawalsPage'
 import AdminRechargePage from './pages/admin/AdminRechargePage'
 import AdminSettingsPage from './pages/admin/AdminSettingsPage'
 import AdminAppPage from './pages/admin/AdminAppPage'
+import AdminAnalyticsPage from './pages/admin/AdminAnalyticsPage'
 import VerifyEmailPage from './pages/VerifyEmailPage'
 import TeamWalletHistoryPage from './pages/TeamWalletHistoryPage'
+import PlayerProfilePage from './pages/PlayerProfilePage'
+import TeamProfilePage from './pages/TeamProfilePage'
 
-// ── Semver comparison: returns true if `a` is strictly older than `b` ────────
+// ── Semver comparison ─────────────────────────────────────────────────────────
 function isOlderVersion(a: string, b: string): boolean {
   const parse = (v: string) =>
     v.replace(/^v/, '').split('.').map(n => parseInt(n, 10) || 0)
@@ -51,10 +54,10 @@ const DASHBOARD_PAGES = [
   'home', 'tournaments', 'tournament-detail', 'scrims',
   'teams', 'team-detail', 'my-team', 'wallet', 'news',
   'news-detail', 'notifications', 'settings',
-  'team-wallet-history',
+  'team-wallet-history', 'player-profile', 'team-profile',
   'admin', 'admin-users', 'admin-teams', 'admin-tournaments',
   'admin-scrims', 'admin-news', 'admin-withdrawals', 'admin-recharge',
-  'admin-settings', 'admin-app',
+  'admin-settings', 'admin-app', 'admin-analytics',
 ]
 
 function PageContent() {
@@ -71,6 +74,8 @@ function PageContent() {
     case 'news':               return <NewsPage />
     case 'notifications':      return <NotificationsPage />
     case 'team-wallet-history': return <TeamWalletHistoryPage />
+    case 'player-profile':     return <PlayerProfilePage />
+    case 'team-profile':       return <TeamProfilePage />
     case 'admin':              return <AdminPage />
     case 'admin-users':        return <AdminUsersPage />
     case 'admin-teams':        return <AdminTeamsPage />
@@ -81,18 +86,61 @@ function PageContent() {
     case 'admin-recharge':     return <AdminRechargePage />
     case 'admin-settings':     return <AdminSettingsPage />
     case 'admin-app':          return <AdminAppPage />
+    case 'admin-analytics':    return <AdminAnalyticsPage />
     default:                   return <HomePage />
   }
 }
 
+// ── FCM token registration via Capacitor PushNotifications ───────────────────
+function useFcmRegistration(token: string | null) {
+  useEffect(() => {
+    if (!token || typeof window === 'undefined') return
+
+    // Dynamically import Capacitor modules — avoids SSR errors
+    const register = async () => {
+      try {
+        const { PushNotifications } = await import('@capacitor/push-notifications')
+        const { Capacitor }         = await import('@capacitor/core')
+
+        if (!Capacitor.isNativePlatform()) return
+
+        const permStatus = await PushNotifications.checkPermissions()
+        if (permStatus.receive === 'prompt') {
+          await PushNotifications.requestPermissions()
+        }
+        if (permStatus.receive !== 'granted') return
+
+        await PushNotifications.register()
+
+        PushNotifications.addListener('registration', ({ value: fcmToken }) => {
+          apiCall('/fcm', {
+            method: 'POST',
+            body: JSON.stringify({ token: fcmToken, platform: 'android' }),
+          }, token).catch(() => {})
+        })
+
+        PushNotifications.addListener('registrationError', (_err) => {
+          // Silently ignore — in-app notifications still work
+        })
+      } catch {
+        // Not a Capacitor environment or module not available
+      }
+    }
+
+    register()
+  }, [token])
+}
+
 export default function App() {
-  const { currentPage, user } = useAppStore()
+  const { currentPage, user, token } = useAppStore()
   const [forceRelease, setForceRelease] = useState<AppRelease | null>(null)
+
+  // Register FCM token
+  useFcmRegistration(token)
 
   // Check for force update on mount and whenever user changes
   useEffect(() => {
     const check = async () => {
-      // Admins are never blocked
       if (user && ['admin', 'superadmin', 'assistant'].includes(user.role)) {
         setForceRelease(null)
         return
@@ -103,8 +151,6 @@ export default function App() {
         const rel  = json?.data?.release as AppRelease | null
         if (!rel || !rel.forceUpdate) { setForceRelease(null); return }
 
-        // Read the version the user is currently running from localStorage
-        // (set to the latest version automatically when they download the app)
         const installedVersion = localStorage.getItem('app_version') || '0.0.0'
         if (isOlderVersion(installedVersion, rel.version)) {
           setForceRelease(rel)
@@ -112,14 +158,12 @@ export default function App() {
           setForceRelease(null)
         }
       } catch {
-        // Network error — don't block the user
         setForceRelease(null)
       }
     }
     check()
   }, [user])
 
-  // Show the full-screen gate if a force update is needed
   if (forceRelease) {
     return (
       <ForceUpdateScreen

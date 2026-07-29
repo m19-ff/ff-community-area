@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { rechargeRequests, wallets, transactions, notifications, teamMembers } from '@/db/schema'
+import { rechargeRequests, wallets, transactions, teamMembers } from '@/db/schema'
 import { eq, sql } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
 import { getTeamWallet, increaseTeamBalance, addTeamTransaction, createTeamWallet } from '@/lib/teamWallet'
+import { sendPushToUsers } from '@/lib/fcm'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const admin = await requireAdmin(request)
@@ -81,12 +82,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       meta:          { rechargeRequestId: reqId },
     })
 
-    await db.insert(notifications).values({
-      userId: req.userId,
-      type:   'general',
-      title:  'Recharge Approved',
-      body:   `Your recharge of ${req.amountPoints} pts ($${req.amountUsd}) has been approved and added to your team wallet!`,
-      data:   { rechargeId: reqId },
+    void sendPushToUsers({
+      userIds: [req.userId],
+      payload: {
+        title: '✅ Recharge Approved',
+        body:  `Your recharge of ${req.amountPoints} pts ($${req.amountUsd}) has been approved and added to your team wallet!`,
+        data:  { deepLink: '/wallet', rechargeId: String(reqId) },
+      },
+      notifType: 'general',
+      notifData: { rechargeId: reqId, deepLink: '/wallet' },
     })
 
     return apiSuccess({ message: `Added ${req.amountPoints} points to team wallet` })
@@ -116,12 +120,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     meta:          { rechargeRequestId: reqId },
   })
 
-  await db.insert(notifications).values({
-    userId: req.userId,
-    type:   'general',
-    title:  'Recharge Approved',
-    body:   `Your recharge of ${req.amountPoints} pts ($${req.amountUsd}) has been approved!`,
-    data:   { rechargeId: reqId },
+  void sendPushToUsers({
+    userIds: [req.userId],
+    payload: {
+      title: '✅ Recharge Approved',
+      body:  `Your recharge of ${req.amountPoints} pts ($${req.amountUsd}) has been approved!`,
+      data:  { deepLink: '/wallet', rechargeId: String(reqId) },
+    },
+    notifType: 'general',
+    notifData: { rechargeId: reqId, deepLink: '/wallet' },
   })
 
   return apiSuccess({ message: `Added ${req.amountPoints} points to user wallet` })

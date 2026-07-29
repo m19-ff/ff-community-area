@@ -313,6 +313,63 @@ export const auditLogs = pgTable('audit_logs', {
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (t) => [index('audit_user_idx').on(t.userId)])
 
+// ─── FCM Tokens ───────────────────────────────────────────────────────────────
+export const fcmTokens = pgTable('fcm_tokens', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  token: text('token').notNull(),
+  platform: varchar('platform', { length: 20 }).default('android').notNull(), // android | web | ios
+  deviceId: varchar('device_id', { length: 255 }),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  index('fcm_user_idx').on(t.userId),
+  index('fcm_token_idx').on(t.token),
+  uniqueIndex('fcm_token_unique').on(t.token),
+])
+
+// ─── Analytics Events ─────────────────────────────────────────────────────────
+export const analyticsEvents = pgTable('analytics_events', {
+  id: serial('id').primaryKey(),
+  userId: integer('user_id').references(() => users.id, { onDelete: 'set null' }),
+  event: varchar('event', { length: 100 }).notNull(),
+  page: varchar('page', { length: 100 }),
+  meta: jsonb('meta'),
+  ipAddress: varchar('ip_address', { length: 50 }),
+  userAgent: text('user_agent'),
+  sessionId: varchar('session_id', { length: 64 }),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (t) => [
+  index('analytics_event_idx').on(t.event),
+  index('analytics_user_idx').on(t.userId),
+  index('analytics_date_idx').on(t.createdAt),
+])
+
+// ─── Daily Analytics Aggregates ───────────────────────────────────────────────
+export const dailyAnalytics = pgTable('daily_analytics', {
+  id: serial('id').primaryKey(),
+  date: varchar('date', { length: 10 }).notNull(), // YYYY-MM-DD
+  metric: varchar('metric', { length: 100 }).notNull(),
+  value: integer('value').default(0).notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('daily_analytics_unique').on(t.date, t.metric),
+  index('daily_analytics_date_idx').on(t.date),
+])
+
+// ─── Rate Limits ──────────────────────────────────────────────────────────────
+export const rateLimits = pgTable('rate_limits', {
+  id: serial('id').primaryKey(),
+  key: varchar('key', { length: 255 }).notNull(), // ip:endpoint or userId:endpoint
+  count: integer('count').default(0).notNull(),
+  windowStart: timestamp('window_start').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+}, (t) => [
+  uniqueIndex('rate_limit_key_idx').on(t.key),
+  index('rate_limit_window_idx').on(t.windowStart),
+])
+
 // ─── Relations ────────────────────────────────────────────────────────────────
 export const usersRelations = relations(users, ({ one, many }) => ({
   wallet: one(wallets, { fields: [users.id], references: [wallets.userId] }),

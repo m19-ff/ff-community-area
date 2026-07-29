@@ -68,6 +68,9 @@ export type Page =
   | 'admin-settings'
   | 'admin-app'
   | 'team-wallet-history'
+  | 'player-profile'
+  | 'team-profile'
+  | 'admin-analytics'
 
 interface AppState {
   // Auth

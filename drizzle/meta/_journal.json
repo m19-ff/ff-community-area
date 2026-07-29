@@ -15,6 +15,13 @@
       "when": 1785318294428,
       "tag": "0001_absent_the_call",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785321506124,
+      "tag": "0002_spooky_apocalypse",
+      "breakpoints": true
     }
   ]
 }

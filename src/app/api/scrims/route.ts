@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { scrims, scrimRegistrations, teams, teamMembers, notifications } from '@/db/schema'
-import { eq, desc, count, and, gte } from 'drizzle-orm'
-import { requireAuth, requireAdmin, apiSuccess, apiError, paginate } from '@/lib/api'
+import { scrims, scrimRegistrations, users } from '@/db/schema'
+import { eq, desc, count, gte } from 'drizzle-orm'
+import { requireAdmin, apiSuccess, apiError, paginate } from '@/lib/api'
+import { sendPushToUsers } from '@/lib/fcm'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -59,6 +60,19 @@ export async function POST(request: NextRequest) {
       roomRevealAt: roomRevealAt ? new Date(roomRevealAt) : null,
       createdBy: admin.userId,
     }).returning()
+
+    // Push notify all active users about new scrim
+    const allUsers = await db.select({ id: users.id }).from(users).where(eq(users.isBanned, false))
+    void sendPushToUsers({
+      userIds: allUsers.map(u => u.id),
+      payload: {
+        title: '⚔️ New Scrim!',
+        body:  `${scrim.name} — Register now!`,
+        data:  { deepLink: '/scrims', scrimId: String(scrim.id) },
+      },
+      notifType: 'scrim_created',
+      notifData: { scrimId: scrim.id, deepLink: '/scrims' },
+    })
 
     return apiSuccess({ scrim }, 201)
   } catch (error) {

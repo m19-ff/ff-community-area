@@ -3,9 +3,10 @@ interface AvatarProps {
   name?: string | null
   size?: number
   className?: string
+  onClick?: () => void
 }
 
-export default function Avatar({ src, name, size = 40, className = '' }: AvatarProps) {
+export default function Avatar({ src, name, size = 40, className = '', onClick }: AvatarProps) {
   const initials = name
     ? name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
     : '?'
@@ -17,6 +18,7 @@ export default function Avatar({ src, name, size = 40, className = '' }: AvatarP
         alt={name || 'Avatar'}
         className={`rounded-full object-cover shrink-0 ${className}`}
         style={{ width: size, height: size }}
+        onClick={onClick}
       />
     )
   }
@@ -35,6 +37,7 @@ export default function Avatar({ src, name, size = 40, className = '' }: AvatarP
         fontSize: size * 0.38,
         border: `1px solid ${bg}44`,
       }}
+      onClick={onClick}
     >
       {initials}
     </div>

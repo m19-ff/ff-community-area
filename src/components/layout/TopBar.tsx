@@ -22,7 +22,11 @@ const PAGE_TITLES: Record<string, string> = {
   'admin-withdrawals': 'Withdrawal Requests',
   'admin-recharge': 'Recharge Requests',
   'admin-settings': 'Platform Settings',
-  'admin-app': 'App Management',
+  'admin-app':       'App Management',
+  'admin-analytics': 'Analytics',
+  'player-profile':  'Player Profile',
+  'team-profile':    'Team Profile',
+  'team-wallet-history': 'Wallet History',
 }
 
 export default function TopBar() {
@@ -85,8 +89,8 @@ export default function TopBar() {
           )}
         </button>
 
-        {/* Avatar */}
-        <button onClick={() => navigate('home')} className="flex items-center gap-2">
+        {/* Avatar → player profile */}
+        <button onClick={() => navigate('player-profile')} className="flex items-center gap-2">
           <Avatar src={user?.profilePicture} name={user?.gameName || user?.email} size={34} />
         </button>
       </div>

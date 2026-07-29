@@ -1,12 +1,14 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { useAppStore, apiCall } from '@/store/useAppStore'
-import { Users, Shield, Trophy, Swords, Zap, DollarSign, TrendingUp, RefreshCw } from 'lucide-react'
+import { Users, Shield, Trophy, Swords, Zap, DollarSign, TrendingUp, RefreshCw, BarChart2, Bell, Wallet } from 'lucide-react'
 import { PageLoader } from '../../ui/LoadingSpinner'
 
 type Stats = {
   users: number; teams: number; players: number; tournaments: number;
-  scrims: number; pendingWithdrawals: number; totalPointsInCirculation: number; revenue: string;
+  scrims: number; pendingWithdrawals: number; pendingRecharges: number;
+  totalPointsInCirculation: number; totalTeamWalletBalance: number;
+  revenue: string; newUsersToday: number; newUsersThisWeek: number;
 }
 
 export default function AdminPage() {
@@ -24,23 +26,27 @@ export default function AdminPage() {
   if (loading) return <PageLoader />
 
   const statCards = [
-    { label: 'Total Users', value: stats?.users || 0, icon: Users, color: '#3b82f6', page: 'admin-users' },
-    { label: 'Active Teams', value: stats?.teams || 0, icon: Shield, color: '#8b5cf6', page: 'admin-teams' },
-    { label: 'Players in Teams', value: stats?.players || 0, icon: Users, color: '#22c55e', page: 'admin-users' },
-    { label: 'Tournaments', value: stats?.tournaments || 0, icon: Trophy, color: '#f59e0b', page: 'admin-tournaments' },
-    { label: 'Scrims', value: stats?.scrims || 0, icon: Swords, color: '#06b6d4', page: 'admin-scrims' },
-    { label: 'Pending Withdrawals', value: stats?.pendingWithdrawals || 0, icon: DollarSign, color: '#e31c1c', page: 'admin-withdrawals' },
-    { label: 'Points in Circulation', value: (stats?.totalPointsInCirculation || 0).toLocaleString(), icon: Zap, color: '#f59e0b', page: null },
-    { label: 'Platform Revenue', value: `$${stats?.revenue || '0.00'}`, icon: TrendingUp, color: '#22c55e', page: null },
+    { label: 'Total Users',         value: stats?.users || 0,                         icon: Users,      color: '#3b82f6', page: 'admin-users' },
+    { label: 'Active Teams',        value: stats?.teams || 0,                         icon: Shield,     color: '#8b5cf6', page: 'admin-teams' },
+    { label: 'New Today',           value: stats?.newUsersToday || 0,                 icon: TrendingUp, color: '#22c55e', page: 'admin-users' },
+    { label: 'New This Week',       value: stats?.newUsersThisWeek || 0,              icon: Users,      color: '#06b6d4', page: 'admin-users' },
+    { label: 'Tournaments',         value: stats?.tournaments || 0,                   icon: Trophy,     color: '#f59e0b', page: 'admin-tournaments' },
+    { label: 'Scrims',              value: stats?.scrims || 0,                        icon: Swords,     color: '#06b6d4', page: 'admin-scrims' },
+    { label: 'Pending Withdrawals', value: stats?.pendingWithdrawals || 0,            icon: DollarSign, color: '#e31c1c', page: 'admin-withdrawals' },
+    { label: 'Pending Recharges',   value: stats?.pendingRecharges || 0,              icon: Bell,       color: '#f59e0b', page: 'admin-recharge' },
+    { label: 'Points Circulation',  value: (stats?.totalPointsInCirculation || 0).toLocaleString(), icon: Zap,   color: '#f59e0b', page: null },
+    { label: 'Team Wallets Total',  value: (stats?.totalTeamWalletBalance || 0).toLocaleString(),   icon: Wallet, color: '#8b5cf6', page: null },
+    { label: 'Revenue',             value: `$${stats?.revenue || '0.00'}`,            icon: TrendingUp, color: '#22c55e', page: null },
   ]
 
   const quickActions = [
-    { label: 'Create Tournament', action: () => navigate('admin-tournaments'), color: '#f59e0b' },
-    { label: 'Create Scrim', action: () => navigate('admin-scrims'), color: '#3b82f6' },
-    { label: 'Publish News', action: () => navigate('admin-news'), color: '#22c55e' },
-    { label: 'Process Withdrawals', action: () => navigate('admin-withdrawals'), color: '#e31c1c' },
-    { label: 'Approve Recharges', action: () => navigate('admin-recharge'), color: '#8b5cf6' },
-    { label: 'Manage Users', action: () => navigate('admin-users'), color: '#06b6d4' },
+    { label: 'Create Tournament',    action: () => navigate('admin-tournaments'), color: '#f59e0b' },
+    { label: 'Create Scrim',         action: () => navigate('admin-scrims'),      color: '#3b82f6' },
+    { label: 'Publish News',         action: () => navigate('admin-news'),        color: '#22c55e' },
+    { label: 'Process Withdrawals',  action: () => navigate('admin-withdrawals'), color: '#e31c1c' },
+    { label: 'Approve Recharges',    action: () => navigate('admin-recharge'),    color: '#8b5cf6' },
+    { label: 'Manage Users',         action: () => navigate('admin-users'),       color: '#06b6d4' },
+    { label: 'Analytics',            action: () => navigate('admin-analytics'),   color: '#8b5cf6' },
   ]
 
   return (

@@ -1,9 +1,10 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { joinRequests, teams, teamMembers, users, notifications } from '@/db/schema'
+import { joinRequests, teams, teamMembers, users } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { transferPlayerBalanceToTeam, getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
+import { sendPushToUsers } from '@/lib/fcm'
 
 // Send join request
 export async function POST(request: NextRequest) {
@@ -35,12 +36,17 @@ export async function POST(request: NextRequest) {
   }).returning()
 
   const [player] = await db.select().from(users).where(eq(users.id, auth.userId)).limit(1)
-  await db.insert(notifications).values({
-    userId: team.captainId,
-    type: 'join_request',
-    title: 'New Join Request',
-    body: `${player.gameName || 'A player'} wants to join your team ${team.name}`,
-    data: { requestId: req.id, teamId, userId: auth.userId },
+
+  // Push + in-app notification for captain
+  void sendPushToUsers({
+    userIds: [team.captainId],
+    payload: {
+      title: '📩 New Join Request',
+      body:  `${player.gameName || 'A player'} wants to join your team ${team.name}`,
+      data:  { deepLink: '/my-team', requestId: String(req.id), teamId: String(teamId) },
+    },
+    notifType: 'join_request',
+    notifData: { requestId: req.id, teamId, userId: auth.userId, deepLink: '/my-team' },
   })
 
   return apiSuccess({ request: req, message: 'Join request sent' }, 201)
@@ -104,12 +110,16 @@ export async function PATCH(request: NextRequest) {
   await db.update(joinRequests).set({ status: 'accepted' }).where(eq(joinRequests.id, requestId))
   await db.insert(teamMembers).values({ teamId: jr.teamId, userId: jr.userId })
 
-  await db.insert(notifications).values({
-    userId: jr.userId,
-    type: 'registration_accepted',
-    title: 'Join Request Accepted',
-    body: `Your request to join ${team.name} has been accepted!`,
-    data: { teamId: jr.teamId },
+  // Push + in-app notification for accepted player
+  void sendPushToUsers({
+    userIds: [jr.userId],
+    payload: {
+      title: '✅ Join Request Accepted!',
+      body:  `Your request to join ${team.name} has been accepted!`,
+      data:  { deepLink: '/my-team', teamId: String(jr.teamId) },
+    },
+    notifType: 'registration_accepted',
+    notifData: { teamId: jr.teamId, deepLink: '/my-team' },
   })
 
   // Auto-create team wallet if missing

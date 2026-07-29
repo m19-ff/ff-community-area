@@ -1,8 +1,9 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { news } from '@/db/schema'
+import { news, users } from '@/db/schema'
 import { eq, and, desc, count } from 'drizzle-orm'
 import { requireAuth, requireAdmin, apiSuccess, apiError, paginate } from '@/lib/api'
+import { sendPushToUsers } from '@/lib/fcm'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -46,6 +47,21 @@ export async function POST(request: NextRequest) {
     publishedAt: isPublished ? new Date() : null,
     createdBy: admin.userId,
   }).returning()
+
+  // Push notify on publish
+  if (isPublished) {
+    const allUsers = await db.select({ id: users.id }).from(users).where(eq(users.isBanned, false))
+    void sendPushToUsers({
+      userIds: allUsers.map(u => u.id),
+      payload: {
+        title: '📰 New News!',
+        body:  item.title,
+        data:  { deepLink: '/news', newsId: String(item.id) },
+      },
+      notifType: 'news',
+      notifData: { newsId: item.id, deepLink: '/news' },
+    })
+  }
 
   return apiSuccess({ news: item }, 201)
 }

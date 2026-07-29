@@ -9,6 +9,8 @@ import {
   addTeamTransaction,
   createTeamWallet,
 } from '@/lib/teamWallet'
+import { sendPushToUsers } from '@/lib/fcm'
+import { trackEvent, incrementDailyMetric } from '@/lib/analytics'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -66,9 +68,22 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
   const [updated] = await db.update(tournaments).set(updates).where(eq(tournaments.id, tournId)).returning()
 
-  // If publishing, notify all users
+  // If publishing, push-notify all active users
   if (body.status === 'published' && t.status !== 'published') {
-    // Could batch-notify here; omitted for brevity
+    const allUsers = await db.select({ id: users.id }).from(users)
+      .where(eq(users.isBanned, false))
+    const userIds = allUsers.map(u => u.id)
+    void sendPushToUsers({
+      userIds,
+      payload: {
+        title: '🏆 New Tournament!',
+        body:  `${updated.name} is now open for registration!`,
+        data:  { deepLink: `/tournaments/${updated.id}`, tournamentId: String(updated.id) },
+      },
+      notifType: 'tournament_published',
+      notifData: { tournamentId: updated.id, deepLink: `/tournaments/${updated.id}` },
+    })
+    void incrementDailyMetric('tournaments_published')
   }
 
   // ── Award prizes to teams ──────────────────────────────────────────────────
@@ -105,21 +120,23 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         meta: { tournamentId: tournId, placement: prize.placement },
       })
 
-      // Notify all team members
+      // Push-notify all team members about prize
       const members = await db
         .select({ userId: teamMembers.userId })
         .from(teamMembers)
         .where(eq(teamMembers.teamId, prize.teamId))
 
-      for (const m of members) {
-        await db.insert(notifications).values({
-          userId: m.userId,
-          type: 'general',
-          title: 'Tournament Prize Awarded',
-          body: `Your team finished #${prize.placement} in ${t.name} and received ${prize.prizePoints} points!`,
-          data: { tournamentId: tournId, teamId: prize.teamId, prizePoints: prize.prizePoints },
-        })
-      }
+      const memberIds = members.map(m => m.userId)
+      void sendPushToUsers({
+        userIds:   memberIds,
+        payload: {
+          title: '🎉 Prize Awarded!',
+          body:  `Your team finished #${prize.placement} in ${t.name} and received ${prize.prizePoints} points!`,
+          data:  { deepLink: `/tournaments/${tournId}`, tournamentId: String(tournId) },
+        },
+        notifType: 'general',
+        notifData: { tournamentId: tournId, teamId: prize.teamId, prizePoints: prize.prizePoints, deepLink: `/tournaments/${tournId}` },
+      })
     }
   }
 
