@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { teams, teamMembers, users, wallets, transactions, teamWallets, teamTransactions } from '@/db/schema'
-import { eq, and, sql } from 'drizzle-orm'
+import { eq, and, ne, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import { getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
 import { teamResetToPlayer } from '@/lib/roleGuard'
@@ -64,7 +64,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const nameTaken = await db
       .select({ id: teams.id })
       .from(teams)
-      .where(and(eq(teams.name, body.name.trim()), eq(teams.id, teamId)))
+      .where(and(eq(teams.name, body.name.trim()), ne(teams.id, teamId)))
       .limit(1)
     if (nameTaken.length > 0) return apiError('Team name already taken', 409)
     updates.name = body.name.trim()

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       resetTokenExpiry: expiry,
     }).where(eq(users.id, user.id))
 
-    return apiSuccess({ message: 'If that email exists, a reset link has been sent.', resetToken: token })
+    return apiSuccess({ message: 'If that email exists, a reset link has been sent.' })
   } catch (error) {
     console.error('[forgot-password]', error)
     return apiError('Failed', 500)

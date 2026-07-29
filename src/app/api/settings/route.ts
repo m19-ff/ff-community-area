@@ -42,8 +42,8 @@ export async function POST(request: NextRequest) {
     const valid = await verifyPassword(body.currentPassword || '', user.password)
     if (!valid) return apiError('Current password is incorrect', 400)
 
-    if (!body.newPassword || body.newPassword.length < 6) {
-      return apiError('New password must be at least 6 characters', 400)
+    if (!body.newPassword || body.newPassword.length < 8) {
+      return apiError('New password must be at least 8 characters', 400)
     }
 
     const hashed = await hashPassword(body.newPassword)

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { tournaments, tournamentTeams, teams, teamMembers, notifications } from '@/db/schema'
-import { eq, and, count } from 'drizzle-orm'
+import { eq, and, count, sql } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
 import {
   getTeamWallet,
@@ -32,18 +32,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, myTeam.id))
   if (members.length < 4) return apiError('Your team needs at least 4 players to register', 400)
 
-  // Check already registered
-  const alreadyReg = await db.select().from(tournamentTeams).where(
-    and(eq(tournamentTeams.tournamentId, tournId), eq(tournamentTeams.teamId, myTeam.id))
-  ).limit(1)
-  if (alreadyReg.length > 0) return apiError('Team already registered for this tournament', 400)
-
-  // Check max teams
-  const [{ registeredCount }] = await db.select({ registeredCount: count() })
-    .from(tournamentTeams).where(eq(tournamentTeams.tournamentId, tournId))
-  if (registeredCount >= tournament.maxTeams) return apiError('Tournament is full', 400)
-
-  // Deduct registration cost from team wallet
+  // Deduct registration cost from team wallet (before transaction to keep it outside the slot-lock)
   if (tournament.registrationCost > 0) {
     const teamWallet = await getTeamWallet(myTeam.id)
     if (!teamWallet || teamWallet.balance < tournament.registrationCost) {
@@ -65,12 +54,34 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
   }
 
-  // Register team
-  await db.insert(tournamentTeams).values({
-    tournamentId: tournId,
-    teamId: myTeam.id,
-    status: 'registered',
-  })
+  // Wrap slot-check + insert in a transaction to prevent over-registration races
+  try {
+    await db.transaction(async (tx) => {
+      // Check already registered
+      const [alreadyReg] = await tx.select({ id: tournamentTeams.id })
+        .from(tournamentTeams)
+        .where(and(eq(tournamentTeams.tournamentId, tournId), eq(tournamentTeams.teamId, myTeam.id)))
+        .limit(1)
+      if (alreadyReg) throw new Error('ALREADY_REGISTERED')
+
+      // Check max teams (re-read inside transaction for consistency)
+      const [{ registeredCount }] = await tx.select({ registeredCount: count() })
+        .from(tournamentTeams)
+        .where(eq(tournamentTeams.tournamentId, tournId))
+      if (registeredCount >= tournament.maxTeams) throw new Error('TOURNAMENT_FULL')
+
+      await tx.insert(tournamentTeams).values({
+        tournamentId: tournId,
+        teamId: myTeam.id,
+        status: 'registered',
+      })
+    })
+  } catch (err) {
+    const msg = (err as Error).message
+    if (msg === 'ALREADY_REGISTERED') return apiError('Team already registered for this tournament', 400)
+    if (msg === 'TOURNAMENT_FULL')     return apiError('Tournament is full', 400)
+    throw err
+  }
 
   // Notify all team members
   for (const member of members) {
@@ -85,3 +96,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   return apiSuccess({ message: `Team ${myTeam.name} registered for ${tournament.name}` }, 201)
 }
+

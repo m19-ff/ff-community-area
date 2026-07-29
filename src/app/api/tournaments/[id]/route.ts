@@ -19,7 +19,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const [t] = await db.select().from(tournaments).where(eq(tournaments.id, tournId)).limit(1)
   if (!t) return apiError('Tournament not found', 404)
 
-  const registeredTeams = await db.select({
+  // Non-published tournaments are only visible to admins
+  const authUser = await requireAuth(request)
+  const isAdmin = authUser?.role === 'admin' || authUser?.role === 'superadmin'
+  if (t.status !== 'published' && !isAdmin) return apiError('Tournament not found', 404)
+
+  const registeredTeamsRaw = await db.select({
     id: tournamentTeams.id,
     status: tournamentTeams.status,
     placement: tournamentTeams.placement,
@@ -35,6 +40,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .leftJoin(teams, eq(tournamentTeams.teamId, teams.id))
     .leftJoin(teamWallets, eq(teams.id, teamWallets.teamId))
     .where(eq(tournamentTeams.tournamentId, tournId))
+
+  // Strip wallet balance for non-admin callers
+  const registeredTeams = registeredTeamsRaw.map(rt => ({
+    ...rt,
+    team: isAdmin
+      ? rt.team
+      : { id: rt.team?.id, name: rt.team?.name, logo: rt.team?.logo },
+  }))
 
   return apiSuccess({ tournament: { ...t, registeredTeams } })
 }

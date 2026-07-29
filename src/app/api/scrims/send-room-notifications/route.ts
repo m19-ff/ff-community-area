@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { scrims, scrimRegistrations, teamMembers } from '@/db/schema'
 import { eq, lte, and, isNotNull } from 'drizzle-orm'
-import { apiSuccess } from '@/lib/api'
+import { apiSuccess, apiError } from '@/lib/api'
 import { sendPushToUsers } from '@/lib/fcm'
 
 /**
@@ -12,10 +12,14 @@ import { sendPushToUsers } from '@/lib/fcm'
  * but have not yet had their room notification sent (status = 'upcoming').
  * Transitions to 'room_revealed' to prevent double-send.
  *
- * Call from a cron job or health-endpoint polling every minute.
- * Optionally protect with X-Cron-Secret header.
+ * Protected by X-Cron-Secret header.
  */
-export async function POST(_request: NextRequest) {
+export async function POST(request: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || request.headers.get('x-cron-secret') !== secret) {
+    return apiError('Unauthorized', 401)
+  }
+
   const now = new Date()
 
   const dueScims = await db

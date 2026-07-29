@@ -2,12 +2,12 @@ import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import {
   teams, teamMembers, users, teamWallets, teamTransactions,
-  tournamentTeams, tournaments,
+  tournamentTeams, tournaments, wallets, transactions,
 } from '@/db/schema'
 import { eq, desc, count, sum, sql, and, ne } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
 import { getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
-import { teamTransferCaptain } from '@/lib/roleGuard'
+import { teamTransferCaptain, teamResetToPlayer } from '@/lib/roleGuard'
 
 // ── GET /api/admin/teams/[id] ─────────────────────────────────────────────────
 export async function GET(
@@ -226,18 +226,84 @@ export async function DELETE(
   const [team] = await db.select().from(teams).where(eq(teams.id, teamId)).limit(1)
   if (!team) return apiError('Team not found', 404)
 
-  // Re-use the existing delete + fund-distribution logic via the user-facing route
-  const baseUrl = new URL(request.url)
-  const target  = `${baseUrl.protocol}//${baseUrl.host}/api/teams/${teamId}`
+  const members    = await db.select().from(teamMembers).where(eq(teamMembers.teamId, teamId))
+  const teamWallet = await getTeamWallet(teamId)
+  const teamBalance  = teamWallet?.balance ?? 0
+  const memberCount  = members.length
 
-  const deleteRes = await fetch(target, {
-    method:  'DELETE',
-    headers: { authorization: request.headers.get('authorization') || '' },
+  // Snapshot member roles before the transaction removes rows
+  const memberRoles = new Map<number, string>()
+  for (const m of members) {
+    const [u] = await db.select({ role: users.role }).from(users).where(eq(users.id, m.userId)).limit(1)
+    if (u) memberRoles.set(m.userId, u.role)
+  }
+
+  await db.transaction(async (tx) => {
+    // Distribute wallet balance equally among all members
+    if (teamBalance > 0 && memberCount > 0) {
+      const share = Math.floor(teamBalance / memberCount)
+      let distributed = 0
+
+      for (const m of members) {
+        const memberShare = distributed + share <= teamBalance
+          ? share
+          : Math.max(0, teamBalance - distributed)
+        if (memberShare <= 0) continue
+
+        const [playerWallet] = await tx
+          .select()
+          .from(wallets)
+          .where(eq(wallets.userId, m.userId))
+          .limit(1)
+
+        if (playerWallet) {
+          const pBalBefore = playerWallet.balance
+          const pBalAfter  = pBalBefore + memberShare
+
+          await tx.update(wallets)
+            .set({
+              balance:     sql`${wallets.balance}     + ${memberShare}`,
+              totalEarned: sql`${wallets.totalEarned} + ${memberShare}`,
+              updatedAt:   new Date(),
+            })
+            .where(eq(wallets.userId, m.userId))
+
+          await tx.insert(transactions).values({
+            userId:        m.userId,
+            type:          'team_split',
+            amount:        memberShare,
+            balanceBefore: pBalBefore,
+            balanceAfter:  pBalAfter,
+            description:   `Team ${team.name} dissolved by admin — equal share distributed`,
+            meta:          { teamId },
+          })
+
+          if (teamWallet) {
+            await tx.insert(teamTransactions).values({
+              teamId,
+              userId:        m.userId,
+              type:          'team_split',
+              amount:        -memberShare,
+              balanceBefore: teamBalance - distributed,
+              balanceAfter:  teamBalance - distributed - memberShare,
+              description:   `Share paid out to member on team dissolution`,
+              meta:          { userId: m.userId },
+            })
+          }
+
+          distributed += memberShare
+        }
+      }
+    }
+
+    // Delete the team (cascades teamMembers, teamWallets, teamTransactions via FK)
+    await tx.delete(teams).where(eq(teams.id, teamId))
   })
 
-  if (!deleteRes.ok) {
-    const body = await deleteRes.json().catch(() => ({}))
-    return apiError((body as { message?: string }).message || 'Failed to delete team', deleteRes.status)
+  // Reset member roles AFTER the transaction
+  for (const m of members) {
+    const currentRole = memberRoles.get(m.userId) ?? 'player'
+    await teamResetToPlayer(m.userId, currentRole, 'DELETE /api/admin/teams/[id]')
   }
 
   return apiSuccess({ message: 'Team deleted and funds distributed' })

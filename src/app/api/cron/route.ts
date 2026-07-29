@@ -13,11 +13,15 @@ import { scrims, scrimRegistrations, teamMembers, seasons, tournamentMatches, to
 import { eq, lte, and, isNotNull, lt } from 'drizzle-orm'
 import { sendPushToUsers } from '@/lib/fcm'
 import { sendMatchRoomNotification } from '../tournaments/[id]/matches/route'
-import { apiSuccess } from '@/lib/api'
+import { apiSuccess, apiError } from '@/lib/api'
 
 export const dynamic = 'force-dynamic'
 
-export async function GET(_request: NextRequest) {
+export async function GET(request: NextRequest) {
+  const secret = process.env.CRON_SECRET
+  if (!secret || request.headers.get('x-cron-secret') !== secret) {
+    return apiError('Unauthorized', 401)
+  }
   const results: Record<string, unknown> = {}
   const now = new Date()
 

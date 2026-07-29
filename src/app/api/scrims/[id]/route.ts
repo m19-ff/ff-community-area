@@ -2,12 +2,16 @@ import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { scrims, scrimRegistrations } from '@/db/schema'
 import { eq, count } from 'drizzle-orm'
-import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
+import { requireAdmin, requireAuth, apiSuccess, apiError } from '@/lib/api'
 
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const scrimId = parseInt(id)
   if (isNaN(scrimId)) return apiError('Invalid ID', 400)
+
+  // Authentication required — credentials must never leak to anonymous callers
+  const authUser = await requireAuth(req)
+  if (!authUser) return apiError('Unauthorized', 401)
 
   const [row] = await db.select({
     id: scrims.id,
@@ -29,7 +33,19 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     .limit(1)
 
   if (!row) return apiError('Scrim not found', 404)
-  return apiSuccess({ scrim: row })
+
+  // Only reveal room credentials after the reveal time (admins always see them)
+  const isAdmin = authUser.role === 'admin' || authUser.role === 'superadmin'
+  const now = new Date()
+  const revealed = isAdmin || !row.roomRevealAt || new Date(row.roomRevealAt) <= now
+
+  return apiSuccess({
+    scrim: {
+      ...row,
+      roomId:       revealed ? row.roomId       : null,
+      roomPassword: revealed ? row.roomPassword : null,
+    },
+  })
 }
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

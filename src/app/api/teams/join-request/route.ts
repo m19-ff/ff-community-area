@@ -107,6 +107,13 @@ export async function PATCH(request: NextRequest) {
     return apiSuccess({ message: 'Request rejected' })
   }
 
+  // Re-read the requester's current role from DB before accepting —
+  // prevents a privileged account from slipping in if role changed after submission.
+  const [requester] = await db.select({ role: users.role }).from(users).where(eq(users.id, jr.userId)).limit(1)
+  if (requester && isPrivileged(requester.role)) {
+    return apiError('Admin accounts cannot join player teams', 403)
+  }
+
   const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, jr.teamId))
   if (members.length >= 6) return apiError('Team is full', 400)
 

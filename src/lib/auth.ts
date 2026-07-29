@@ -1,9 +1,14 @@
 import { SignJWT, jwtVerify } from 'jose'
 import { cookies } from 'next/headers'
 
-const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'esports-platform-secret-key-2025-change-in-production'
-)
+const jwtSecretValue = process.env.JWT_SECRET
+if (!jwtSecretValue) {
+  throw new Error(
+    'JWT_SECRET environment variable is not set. ' +
+    'Set it to a long random string before starting the server.'
+  )
+}
+const JWT_SECRET = new TextEncoder().encode(jwtSecretValue)
 
 export interface JWTPayload {
   userId: number

@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 import { db } from '@/db'
 import { achievements, userAchievements } from '@/db/schema'
 import { eq } from 'drizzle-orm'
-import { apiSuccess, requireAuth } from '@/lib/api'
+import { apiSuccess, apiError, requireAuth, requireAdmin } from '@/lib/api'
 
 // Default achievement definitions
 export const DEFAULT_ACHIEVEMENTS = [
@@ -45,7 +45,10 @@ export async function GET(request: NextRequest) {
 }
 
 /** Seed default achievements if table is empty */
-export async function PUT(_request: NextRequest) {
+export async function PUT(request: NextRequest) {
+  const adminUser = await requireAdmin(request)
+  if (!adminUser) return apiError('Admin required', 403)
+
   const existing = await db.select({ key: achievements.key }).from(achievements)
   const existingKeys = new Set(existing.map(e => e.key))
 

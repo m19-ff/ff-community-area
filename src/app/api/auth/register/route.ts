@@ -50,7 +50,6 @@ export async function POST(request: NextRequest) {
         profileCompleted: user.profileCompleted,
         emailVerified: user.emailVerified,
       },
-      verifyToken,
     }, 201)
   } catch (error) {
     console.error('[register]', error)

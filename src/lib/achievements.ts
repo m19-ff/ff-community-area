@@ -3,15 +3,16 @@
  * Call checkAndUnlockAchievements(userId) after any significant event.
  */
 import { db } from '@/db'
-import { achievements, userAchievements, wallets, teamMembers, teams, tournamentTeams, users } from '@/db/schema'
+import { achievements, userAchievements, wallets, teamMembers, teams, tournamentTeams, users, playerStats } from '@/db/schema'
 import { eq, sql, count, inArray } from 'drizzle-orm'
 import { sendPushToUsers } from './fcm'
 
 export async function checkAndUnlockAchievements(userId: number): Promise<void> {
   try {
     // Gather current stats for this user
-    const [wallet] = await db.select({ totalEarned: wallets.totalEarned }).from(wallets).where(eq(wallets.userId, userId))
-    const [user] = await db.select({ role: users.role, adWatchedToday: users.adWatchedToday }).from(users).where(eq(users.id, userId))
+    const [wallet]      = await db.select({ totalEarned: wallets.totalEarned }).from(wallets).where(eq(wallets.userId, userId))
+    const [user]        = await db.select({ role: users.role }).from(users).where(eq(users.id, userId))
+    const [pStats]      = await db.select({ adWatchedTotal: playerStats.adWatchedTotal }).from(playerStats).where(eq(playerStats.userId, userId))
     if (!user) return
 
     // Tournament participations & wins for this user's teams
@@ -61,7 +62,7 @@ export async function checkAndUnlockAchievements(userId: number): Promise<void> 
       tournaments:    totalTournaments,
       wins:           totalWins,
       top3:           top3Count,
-      ads:            user.adWatchedToday, // approximate — ideally cumulative
+      ads:            pStats?.adWatchedTotal ?? 0,
       points_earned:  wallet?.totalEarned || 0,
       achievements:   Number(unlocked) || 0,
       captain_wins:   captainWins,

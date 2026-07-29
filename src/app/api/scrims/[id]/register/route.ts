@@ -21,16 +21,28 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const members = await db.select().from(teamMembers).where(eq(teamMembers.teamId, myTeam.id))
   if (members.length < 4) return apiError('Team needs at least 4 players', 400)
 
-  const alreadyReg = await db.select().from(scrimRegistrations).where(
-    and(eq(scrimRegistrations.scrimId, scrimId), eq(scrimRegistrations.teamId, myTeam.id))
-  ).limit(1)
-  if (alreadyReg.length > 0) return apiError('Team already registered for this scrim', 400)
+  // Wrap slot-check + insert in a transaction to prevent over-registration races
+  try {
+    await db.transaction(async (tx) => {
+      const [alreadyReg] = await tx.select({ id: scrimRegistrations.id })
+        .from(scrimRegistrations)
+        .where(and(eq(scrimRegistrations.scrimId, scrimId), eq(scrimRegistrations.teamId, myTeam.id)))
+        .limit(1)
+      if (alreadyReg) throw new Error('ALREADY_REGISTERED')
 
-  const [{ regCount }] = await db.select({ regCount: count() })
-    .from(scrimRegistrations).where(eq(scrimRegistrations.scrimId, scrimId))
-  if (regCount >= scrim.maxTeams) return apiError('Scrim is full', 400)
+      const [{ regCount }] = await tx.select({ regCount: count() })
+        .from(scrimRegistrations)
+        .where(eq(scrimRegistrations.scrimId, scrimId))
+      if (regCount >= scrim.maxTeams) throw new Error('SCRIM_FULL')
 
-  await db.insert(scrimRegistrations).values({ scrimId, teamId: myTeam.id })
+      await tx.insert(scrimRegistrations).values({ scrimId, teamId: myTeam.id })
+    })
+  } catch (err) {
+    const msg = (err as Error).message
+    if (msg === 'ALREADY_REGISTERED') return apiError('Team already registered for this scrim', 400)
+    if (msg === 'SCRIM_FULL')         return apiError('Scrim is full', 400)
+    throw err
+  }
 
   // Notify team members with room details if reveal time has passed
   const now = new Date()
@@ -54,3 +66,4 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   return apiSuccess({ message: `Registered for scrim ${scrim.name}` })
 }
+
