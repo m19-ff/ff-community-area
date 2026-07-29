@@ -76,6 +76,7 @@ export type Page =
   | 'achievements'
   | 'team-chat'
   | 'admin-seasons'
+  | 'admin-team-detail'
 
 interface AppState {
   // Auth
