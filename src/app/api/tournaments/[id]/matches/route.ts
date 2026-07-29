@@ -162,7 +162,7 @@ export async function sendMatchRoomNotification({
 }: {
   match: typeof tournamentMatches.$inferSelect & { groupName?: string | null }
   tournamentName: string
-  sentByUserId: number
+  sentByUserId: number | null
   sentByName: string
 }): Promise<number> {
   if (!match.groupId) return 0
@@ -221,7 +221,7 @@ export async function sendMatchRoomNotification({
     tournamentId:   match.tournamentId,
     groupId:        match.groupId,
     groupName,
-    sentBy:         sentByUserId,
+    sentBy:         sentByUserId ?? null,
     sentByName,
     roomId:         match.roomId,
     roomPassword:   match.roomPassword,

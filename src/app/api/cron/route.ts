@@ -139,7 +139,7 @@ export async function GET(_request: NextRequest) {
         await sendMatchRoomNotification({
           match,
           tournamentName: tournament?.name ?? `Tournament ${match.tournamentId}`,
-          sentByUserId:   0,
+          sentByUserId:   null,
           sentByName:     'System (Auto)',
         })
         matchNotifCount++
