@@ -82,7 +82,7 @@ export default function HomePage() {
           <div>
             <h2 className="text-heading">Welcome back, <span style={{ color: 'var(--accent-red)' }}>{user?.gameName || 'Warrior'}</span>!</h2>
             <p className="text-small mt-1" style={{ color: 'var(--text-secondary)' }}>
-              {myTeam ? `${myTeam.name} · ${(myTeam.walletBalance ?? myTeam.points ?? 0).toLocaleString()} team pts` : 'No team yet — create or join one'}
+              {myTeam ? `${myTeam.name} · ${myTeam.walletBalance.toLocaleString()} team pts` : 'No team yet — create or join one'}
             </p>
           </div>
         </div>
@@ -102,7 +102,7 @@ export default function HomePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
         {[
           { label: 'My Balance', value: `${wallet?.balance?.toLocaleString() || 0} pts`, sub: `$${wallet?.usdValue || '0.00'} USD`, icon: Zap, color: '#e31c1c' },
-          { label: 'Team Wallet', value: `${(myTeam?.walletBalance ?? myTeam?.points ?? 0).toLocaleString()} pts`, sub: myTeam?.name || 'No team', icon: Shield, color: '#8b5cf6' },
+          { label: 'Team Wallet', value: `${(myTeam?.walletBalance ?? 0).toLocaleString()} pts`, sub: myTeam?.name || 'No team', icon: Shield, color: '#8b5cf6' },
           { label: 'Tournaments', value: `${myTeam?.totalTournaments || 0}`, sub: 'Played', icon: Trophy, color: '#f59e0b' },
           { label: 'Ads Today', value: `${adsToday}/3`, sub: 'Watch & Earn', icon: Play, color: '#22c55e' },
         ].map(({ label, value, sub, icon: Icon, color }) => (

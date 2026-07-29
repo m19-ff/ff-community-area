@@ -8,10 +8,10 @@ import Modal from '../ui/Modal'
 
 type Member = { id: number; gameName: string; gameUid: string; profilePicture: string | null; role: string; joinedAt: string }
 type TeamDetail = {
-  id: number; name: string; logo: string | null; points: number; walletBalance: number; captainId: number; members: Member[]
+  id: number; name: string; logo: string | null; walletBalance: number; captainId: number; members: Member[]
 }
 type JoinRequest = { id: number; status: string; message: string; createdAt: string; user: { id: number; gameName: string; gameUid: string; profilePicture: string | null } }
-type Invitation = { id: number; status: string; team: { id: number; name: string; logo: string | null; walletBalance?: number; points?: number }; createdAt: string }
+type Invitation = { id: number; status: string; team: { id: number; name: string; logo: string | null; walletBalance: number }; createdAt: string }
 
 export default function MyTeamPage() {
   const { token, user, myTeam, setMyTeam, navigate, showToast } = useAppStore()
@@ -176,7 +176,7 @@ export default function MyTeamPage() {
                     <div>
                       <div className="font-semibold">{inv.team?.name}</div>
                       <div className="text-small" style={{ color: 'var(--text-muted)' }}>
-                        {(inv.team?.walletBalance ?? inv.team?.points ?? 0).toLocaleString()} pts
+                        {(inv.team?.walletBalance ?? 0).toLocaleString()} pts
                       </div>
                     </div>
                   </div>
@@ -343,7 +343,7 @@ export default function MyTeamPage() {
               <div className="flex-1">
                 <div className="font-semibold">{inv.team?.name}</div>
                 <div className="text-small" style={{ color: 'var(--text-muted)' }}>
-                  {(inv.team?.walletBalance ?? inv.team?.points ?? 0).toLocaleString()} pts
+                  {(inv.team?.walletBalance ?? 0).toLocaleString()} pts
                 </div>
               </div>
               <div className="flex gap-2">

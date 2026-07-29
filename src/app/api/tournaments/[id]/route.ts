@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { tournaments, tournamentTeams, teams, teamMembers, users, wallets, transactions, notifications } from '@/db/schema'
+import { tournaments, tournamentTeams, teams, teamMembers, users, wallets, transactions, notifications, teamWallets } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, requireAdmin, apiSuccess, apiError } from '@/lib/api'
 import {
   getTeamWallet,
   increaseTeamBalance,
   addTeamTransaction,
+  createTeamWallet,
 } from '@/lib/teamWallet'
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -25,11 +26,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       id: teams.id,
       name: teams.name,
       logo: teams.logo,
-      points: teams.points,
+      walletBalance: teamWallets.balance,
     },
   })
     .from(tournamentTeams)
     .leftJoin(teams, eq(tournamentTeams.teamId, teams.id))
+    .leftJoin(teamWallets, eq(teams.id, teamWallets.teamId))
     .where(eq(tournamentTeams.tournamentId, tournId))
 
   return apiSuccess({ tournament: { ...t, registeredTeams } })
@@ -85,9 +87,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         eq(tournamentTeams.teamId, prize.teamId),
       ))
 
-      // Credit team wallet
-      const teamWallet = await getTeamWallet(prize.teamId)
-      if (!teamWallet) continue
+      // Credit team wallet — auto-create if missing
+      let teamWallet = await getTeamWallet(prize.teamId)
+      if (!teamWallet) teamWallet = await createTeamWallet(prize.teamId)
 
       const balanceBefore = teamWallet.balance
       const updatedWallet = await increaseTeamBalance(prize.teamId, prize.prizePoints)

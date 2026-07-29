@@ -22,8 +22,7 @@ export interface Team {
   id: number
   name: string
   logo?: string | null
-  points: number
-  walletBalance?: number
+  walletBalance: number
   captainId: number
   totalTournaments?: number
   memberCount?: number

@@ -3,7 +3,6 @@ import { db } from '@/db'
 import { rechargeRequests, wallets, transactions, notifications, teamMembers, teams } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
-import { adjustTeamPointsForUser } from '@/lib/teamPoints'
 import {
   getTeamWallet,
   increaseTeamBalance,
@@ -124,9 +123,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     body: `Your recharge of ${req.amountPoints} points ($${req.amountUsd}) has been approved!`,
     data: { rechargeId: reqId },
   })
-
-  // Keep team points in sync (no-op — player has no team)
-  await adjustTeamPointsForUser(req.userId, req.amountPoints)
 
   return apiSuccess({ message: `Added ${req.amountPoints} points to user wallet` })
 }

@@ -7,7 +7,7 @@ import Avatar from '../ui/Avatar'
 import Modal from '../ui/Modal'
 
 type Team = {
-  id: number; name: string; logo: string | null; points: number; walletBalance?: number;
+  id: number; name: string; logo: string | null; walletBalance: number;
   captainId: number; totalTournaments: number; memberCount: number;
 }
 
@@ -91,7 +91,7 @@ export default function TeamsPage() {
               <div className="flex items-center gap-4 mb-4 text-small" style={{ color: 'var(--text-secondary)' }}>
                 <span className="flex items-center gap-1">
                   <Zap size={13} style={{ color: 'var(--accent-red)' }} />
-                  {(team.walletBalance ?? team.points ?? 0).toLocaleString()} pts
+                  {team.walletBalance.toLocaleString()} pts
                 </span>
                 <span className="flex items-center gap-1">
                   <Trophy size={13} style={{ color: '#f59e0b' }} />

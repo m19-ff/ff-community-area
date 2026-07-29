@@ -3,7 +3,6 @@ import { db } from '@/db'
 import { users, wallets, transactions, notifications } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAdmin, apiSuccess, apiError } from '@/lib/api'
-import { syncTeamPoints, adjustTeamPointsForUser } from '@/lib/teamPoints'
 import { teamMembers } from '@/db/schema'
 
 export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -56,9 +55,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       body: `${points} points have been added to your wallet by admin.`,
     })
 
-    // Keep team points in sync
-    await adjustTeamPointsForUser(userId, points)
-
     return apiSuccess({ message: `Awarded ${points} points`, newBalance })
   }
 
@@ -79,11 +75,6 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       balanceAfter: newBalance,
       description: `Admin deducted ${actualDeduction} points${reason ? ': ' + reason : ''}`,
     })
-
-    // Keep team points in sync (use exact deduction after capping at balance)
-    if (actualDeduction > 0) {
-      await adjustTeamPointsForUser(userId, -actualDeduction)
-    }
 
     return apiSuccess({ message: `Deducted ${actualDeduction} points`, newBalance })
   }

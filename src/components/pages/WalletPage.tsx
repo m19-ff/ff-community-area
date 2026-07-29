@@ -200,7 +200,7 @@ export default function WalletPage() {
         </div>
         <div className="stat-card">
           <div className="text-xs uppercase tracking-widest mb-2" style={{ color: 'var(--text-muted)' }}>Team Wallet</div>
-          <div className="text-2xl font-bold" style={{ color: '#8b5cf6' }}>{(myTeam?.walletBalance ?? myTeam?.points ?? 0).toLocaleString()}</div>
+          <div className="text-2xl font-bold" style={{ color: '#8b5cf6' }}>{(myTeam?.walletBalance ?? 0).toLocaleString()}</div>
           <div className="text-small mt-1" style={{ color: 'var(--text-muted)' }}>{myTeam?.name || 'No team'}</div>
         </div>
       </div>

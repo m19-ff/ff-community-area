@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
   const page = parseInt(searchParams.get('page') || '1')
   const limit = parseInt(searchParams.get('limit') || '20')
   const search = searchParams.get('search') || ''
-  const { limit: take, offset, page: pg } = paginate(page, limit)
+  const { limit: take, offset } = paginate(page, limit)
 
   const conditions = search ? like(teams.name, `%${search}%`) : undefined
 
@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
     id: teams.id,
     name: teams.name,
     logo: teams.logo,
-    points: teams.points,                          // kept for backward compat
     walletBalance: sql<number>`coalesce(${teamWallets.balance}, 0)`,
     captainId: teams.captainId,
     totalTournaments: teams.totalTournaments,
@@ -38,7 +37,7 @@ export async function GET(request: NextRequest) {
 
   return apiSuccess({
     teams: teamList,
-    pagination: { page: pg, limit: take, total, pages: Math.ceil(total / take) },
+    pagination: { page, limit: take, total, pages: Math.ceil(total / take) },
   })
 }
 

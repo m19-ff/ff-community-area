@@ -3,7 +3,6 @@ import { db } from '@/db'
 import { users, wallets, settings, transactions, teamMembers, teams } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
-import { adjustTeamPointsForUser } from '@/lib/teamPoints'
 import {
   getTeamWallet,
   increaseTeamBalance,
@@ -98,8 +97,6 @@ export async function POST(request: NextRequest) {
       description: `Ad reward #${watched + 1} of the day`,
     })
 
-    // Keep team points in sync (no-op since player has no team)
-    await adjustTeamPointsForUser(auth.userId, rewardPoints)
   }
 
   return apiSuccess({

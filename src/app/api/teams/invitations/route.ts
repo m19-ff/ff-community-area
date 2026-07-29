@@ -1,17 +1,16 @@
 import { NextRequest } from 'next/server'
 import { db } from '@/db'
-import { invitations, teams, users, teamMembers, notifications } from '@/db/schema'
+import { invitations, teams, users, teamMembers, notifications, teamWallets } from '@/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { requireAuth, apiSuccess, apiError } from '@/lib/api'
-import { syncTeamPoints } from '@/lib/teamPoints'
-import { transferPlayerBalanceToTeam } from '@/lib/teamWallet'
+import { transferPlayerBalanceToTeam, getTeamWallet, createTeamWallet } from '@/lib/teamWallet'
 
 // Get my invitations
 export async function GET(request: NextRequest) {
   const auth = await requireAuth(request)
   if (!auth) return apiError('Unauthorized', 401)
 
-  const myInvitations = await db.select({
+  const rows = await db.select({
     id: invitations.id,
     status: invitations.status,
     createdAt: invitations.createdAt,
@@ -20,14 +19,15 @@ export async function GET(request: NextRequest) {
       id: teams.id,
       name: teams.name,
       logo: teams.logo,
-      points: teams.points,
+      walletBalance: teamWallets.balance,
     },
   })
     .from(invitations)
     .leftJoin(teams, eq(invitations.teamId, teams.id))
+    .leftJoin(teamWallets, eq(teams.id, teamWallets.teamId))
     .where(and(eq(invitations.invitedUserId, auth.userId), eq(invitations.status, 'pending')))
 
-  return apiSuccess({ invitations: myInvitations })
+  return apiSuccess({ invitations: rows })
 }
 
 // Accept or decline invitation
@@ -78,11 +78,12 @@ export async function PATCH(request: NextRequest) {
     data: { teamId: inv.teamId, userId: auth.userId },
   })
 
+  // Auto-create team wallet if missing
+  const tw = await getTeamWallet(inv.teamId)
+  if (!tw) await createTeamWallet(inv.teamId)
+
   // Transfer player's personal wallet balance into the team wallet
   await transferPlayerBalanceToTeam(auth.userId, inv.teamId, team.name)
-
-  // Sync team points
-  await syncTeamPoints(inv.teamId)
 
   return apiSuccess({ message: 'Joined team successfully', teamId: inv.teamId })
 }
